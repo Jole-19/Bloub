@@ -35,22 +35,28 @@ export interface BotFrame {
  * Ou le bot porte son regard quand quelque chose d'exterieur le pilote — le
  * pointeur de la souris, aujourd'hui.
  *
- * Les deux axes n'ont PAS la meme semantique, et c'est voulu :
+ * `yaw` et `pitch` sont des directions ABSOLUES, qui remplacent celles de la pose
+ * a mesure que `mix` monte. Deux raisons, chacune un piege deja tombe :
  *
- * - `yaw` est une direction ABSOLUE, qui remplace celle de la pose a mesure que
- *   `mix` monte. C'est le moteur qui fait ce melange, et pas l'appelant, parce
- *   que lui seul connait le lacet de la pose A CET INSTANT : pendant un
- *   changement d'expression, la pose morphe, et un appelant qui compenserait le
- *   lacet de l'expression lirait sa valeur d'arrivee au lieu de sa valeur
- *   courante. Les yeux sautaient a chaque humeur — piege deja tombe une fois.
- * - `pitchOffset` est un ECART, ajoute a celui de la pose. Le tangage n'a pas
- *   besoin d'etre neutralise, et le garder relatif preserve ce qui fait le
- *   caractere de chaque expression : la fierte regarde en haut, la tristesse en
- *   bas.
+ * - c'est le MOTEUR qui doit faire ce melange, pas l'appelant, parce que lui seul
+ *   connait la pose A CET INSTANT. Un appelant qui compenserait l'orientation de
+ *   l'expression lirait sa valeur d'arrivee pendant que le morph est encore en
+ *   cours, et les yeux sautaient a chaque changement d'humeur ;
+ * - et il faut que ce soit absolu sur les DEUX axes. En relatif, la hauteur des
+ *   yeux suivait celle de chaque expression — « neutre » regarde a +28,6deg quand
+ *   les autres sont entre -9 et +9 — donc les yeux tombaient d'un coup au premier
+ *   changement d'humeur. Ce qui fait le caractere d'une expression pendant le
+ *   suivi, c'est la FORME de ses yeux (plisses, ronds, dissymetriques), pas
+ *   l'endroit ou elle regarde : celui-la, c'est le curseur qui le decide.
  *
- * `mix` dit a quel point l'exterieur commande (0 = pas du tout). Il sert aussi a
- * eteindre la derive automatique du regard : les deux cumulees, le bot aurait
- * l'air de chercher le curseur sans jamais le tenir.
+ * `mix` dit a quel point l'exterieur commande la DIRECTION (0 = pas du tout).
+ *
+ * `wander` dit, separement, ce qui reste de derive automatique. Les deux ne se
+ * confondent pas : quand le pointeur bouge, la derive doit s'eteindre — cumulees,
+ * le bot aurait l'air de chercher le curseur sans jamais le tenir. Mais quand il
+ * n'y a PAS de pointeur (arrivee au clavier, au tactile, ou souris sortie de la
+ * fenetre), la tete doit rester tournee ET continuer de vivre. Les confondre
+ * figeait le regard des que la vue s'ouvrait.
  *
  * `spin` est un tour a parcourir EN CHEMIN, en degres, qu'on fait fondre vers 0
  * avec l'arrivee. Comme les yeux vivent sur une sphere, un tour les fait passer
@@ -59,18 +65,20 @@ export interface BotFrame {
  */
 export interface Look {
   yaw: number
-  pitchOffset: number
+  pitch: number
   mix: number
   spin: number
+  wander: number
 }
 
-const NO_LOOK: Look = { yaw: 0, pitchOffset: 0, mix: 0, spin: 0 }
+const NO_LOOK: Look = { yaw: 0, pitch: 0, mix: 0, spin: 0, wander: 1 }
 
 const lerpLook = (a: Look, b: Look, t: number): Look => ({
   yaw: lerp(a.yaw, b.yaw, t),
-  pitchOffset: lerp(a.pitchOffset, b.pitchOffset, t),
+  pitch: lerp(a.pitch, b.pitch, t),
   mix: lerp(a.mix, b.mix, t),
-  spin: lerp(a.spin, b.spin, t)
+  spin: lerp(a.spin, b.spin, t),
+  wander: lerp(a.wander, b.wander, t)
 })
 
 const lerpEye = (a: Pose['eyes'][number], b: Pose['eyes'][number], t: number) => ({
@@ -135,6 +143,7 @@ export class BotEngine {
   private look: Look = NO_LOOK
   private lookPrev: Look = NO_LOOK
   private lookAt = -10
+  /** duree de rattrapage en cours ; voir `LOOK_MORPH`, sa valeur par defaut */
   private lookMorph = 0.24
 
   /** duree du morph quand on change la forme du corps */
@@ -227,6 +236,17 @@ export class BotEngine {
    * moteur cesse d'etre une fonction pure du temps.
    */
   setLook(look: Look | null, now: number, morph = BotEngine.LOOK_MORPH) {
+    /*
+     * Une cible non finie est refusee. Le moteur GARDE la derniere : un `NaN`
+     * pose une seule fois se propagerait a chaque image et le bot ne se
+     * reposerait plus jamais. C'est arrive pour de vrai — un
+     * `getBoundingClientRect` sur une boite de taille nulle donne `0 / 0` chez
+     * l'appelant. Celui-la est corrige, mais le moteur n'a pas a dependre de la
+     * prudence de ses appelants pour rester rejouable.
+     */
+    if (look && !Number.isFinite(look.yaw + look.pitch + look.mix + look.spin + look.wander)) {
+      return
+    }
     this.lookPrev = this.lookAtTime(now)
     this.look = look ?? NO_LOOK
     this.lookAt = now
@@ -298,15 +318,15 @@ export class BotEngine {
     // --- vie au repos -----------------------------------------------------
     const alive = pose.eyeAlpha > 0.01
     const look = this.lookAtTime(now)
-    // le pointeur eteint la derive a mesure qu'il prend la main : les deux
-    // ecarts additionnes, le bot chercherait le curseur sans jamais le tenir
-    const life = liveliness(now, { wander: alive ? 1 - look.mix : 0, blink: alive })
+    const life = liveliness(now, { wander: alive ? look.wander : 0, blink: alive })
 
     const gaze = {
-      // Le lacet vise REMPLACE celui de la pose au lieu de s'y ajouter (voir
-      // `Look`), et le tour se retranche en chemin.
-      yaw: lerp(pose.gaze.yaw + life.dYaw, look.yaw, look.mix) - look.spin,
-      pitch: pose.gaze.pitch + life.dPitch + look.pitchOffset,
+      // Les deux visees REMPLACENT celles de la pose au lieu de s'y ajouter (voir
+      // `Look`), et le tour se retranche en chemin. La derive s'ajoute APRES le
+      // melange, sinon la cible l'annulerait en meme temps que la pose — or elle
+      // doit survivre a une tete tournee sans pointeur.
+      yaw: lerp(pose.gaze.yaw, look.yaw, look.mix) + life.dYaw - look.spin,
+      pitch: lerp(pose.gaze.pitch, look.pitch, look.mix) + life.dPitch,
       // le roulis, lui, ne suit rien : la tete du bot est penchee de -13deg dans
       // la video, et la faire rouler avec le curseur casse cette signature
       roll: pose.gaze.roll + life.dRoll

@@ -1,4 +1,5 @@
 import type { Look } from '@/bot/engine'
+import type { ExpressionId } from '@/bot/expressions'
 
 /**
  * Ou le bot regarde quand il suit le curseur. Pur, comme `src/ui/timeline.ts` :
@@ -17,7 +18,18 @@ export const YAW_MAX = 16
 export const PITCH_MAX = 13
 
 /**
- * Demi-tour de tete de la vue des reglages : le bot cesse de regarder en haut a
+ * Hauteur a laquelle le regard se tient, curseur au centre. CHOISIE : legerement
+ * au-dessus de l'equateur, ce qui donne un bot attentif plutot qu'absent.
+ *
+ * C'est une valeur ABSOLUE, et c'est tout le point : en relatif, la hauteur des
+ * yeux suivait celle de chaque expression, et comme « neutre » regarde a
+ * +28,6deg quand les humeurs sont entre -9 et +9, les yeux tombaient d'un coup
+ * au premier changement d'humeur.
+ */
+export const PITCH = 10
+
+/**
+ * Direction ou la tete se pose dans la vue des reglages : le bot cesse de regarder en haut a
  * droite (sa pose de repos) pour regarder a GAUCHE, du cote du panneau.
  *
  * Ce n'est pas un miroir de l'image : les yeux font vraiment le tour de la
@@ -47,6 +59,28 @@ export const SPIN = 360
  */
 export const TURN_TIME = 1.1
 
+/**
+ * Humeurs que le bot traverse pendant qu'il suit le curseur.
+ *
+ * Toutes ont un ROULIS NUL, et c'est le critere de selection. Le lacet et le
+ * tangage sont neutralises par le suivi (ils sont absolus), mais pas le roulis —
+ * il fait pencher la tete, donc il deplace les yeux verticalement, et une humeur
+ * a -15deg suivie d'une a +8 les fait sauter. Ce qui reste pour distinguer les
+ * humeurs, c'est la FORME des yeux : ronds, plisses, ecarquilles, aplatis. C'est
+ * largement suffisant, et c'est ce qui se lit.
+ *
+ * Ce n'est donc pas une liste de gouts : y ajouter « curieux » (roulis -15deg)
+ * ramenerait le saut.
+ */
+export const HUMEURS: readonly ExpressionId[] = [
+  'surpris',
+  'heureux',
+  'hilare',
+  'excite',
+  'fier',
+  'blase'
+]
+
 export interface Aim {
   /** ecart horizontal du pointeur au centre du bot, -1 a 1 (droite positive) */
   nx: number
@@ -54,6 +88,8 @@ export interface Aim {
   ny: number
   /** avancement de l'arrivee, 0 a 1 */
   tour: number
+  /** false = aucun pointeur connu : la tete reste tournee, mais elle revit */
+  pointer: boolean
 }
 
 /**
@@ -68,12 +104,16 @@ export interface Aim {
  * lire le lacet d'ARRIVEE de l'expression pendant que le moteur, lui, morphe
  * encore — et les yeux sautaient a chaque changement d'humeur.
  */
-export function lookTarget({ nx, ny, tour }: Aim): Look {
+export function lookTarget({ nx, ny, tour, pointer }: Aim): Look {
   return {
     yaw: -TURN + nx * YAW_MAX,
     // tangage positif = regard vers le haut, alors que le y de l'ecran descend
-    pitchOffset: tour * -ny * PITCH_MAX,
+    pitch: PITCH - ny * PITCH_MAX,
     mix: tour,
-    spin: SPIN * (1 - tour)
+    spin: SPIN * (1 - tour),
+    // Sans pointeur la tete reste tournee vers le panneau, mais on lui rend sa
+    // derive : sinon le bot fixe un point mort, et arriver au clavier ou au
+    // tactile donnait un avatar completement immobile.
+    wander: pointer ? 0 : 1
   }
 }

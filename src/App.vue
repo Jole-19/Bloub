@@ -7,6 +7,7 @@ import Settings from '@/components/Settings.vue'
 import SideRail, { type ViewId } from '@/components/SideRail.vue'
 import Timeline from '@/components/Timeline.vue'
 import { t } from '@/i18n'
+import { HUMEURS } from '@/ui/gaze'
 import { blockAt, blocksWith, defaultCycle, makeBlock, parseCycles, type Cycle } from '@/bot/cycles'
 import { DEFAULT_EXPRESSION, EXPRESSION_BY_ID } from '@/bot/expressions'
 import { COLOR_BY_ID, DEFAULT_COLOR, DEFAULT_SHAPE, SHAPE_BY_ID } from '@/bot/skins'
@@ -226,19 +227,26 @@ watch(shape, (v) => localStorage.setItem('grokbot:forme', v))
 watch(color, (v) => localStorage.setItem('grokbot:couleur', v))
 watch(expression, (v) => localStorage.setItem('grokbot:expression', v))
 
+/**
+ * Nom du produit, en capitales pour le grand mot du pied de page. PAS traduit —
+ * c'est une marque. Il n'est pas non plus tire de `t('app.name')`, qui vaut encore
+ * « Grok bot » : le renommage du reste de l'application n'est pas fait, il attend
+ * une decision. Les autres occurrences a reprendre le jour venu : `index.html`
+ * (title, description, og:*) et `app.name` / `app.title` dans les trois locales.
+ */
+const NOM = 'BLOUB'
+
 /* ----------------------------------------------------------------- humeurs */
 
 /**
- * Dans les reglages, le bot change d'humeur de temps a autre pendant que ses
- * yeux suivent le curseur. C'est un vernis de page, PAS un reglage :
- * l'expression choisie par l'utilisateur n'est ni remplacee ni ecrite dans le
- * stockage, on se contente d'en jouer une autre le temps de la visite.
+ * Dans les reglages, le bot change d'humeur de temps a autre pendant que ses yeux
+ * suivent le curseur. C'est un vernis de page, PAS un reglage : l'expression
+ * choisie par l'utilisateur n'est ni remplacee ni ecrite dans le stockage, on se
+ * contente d'en jouer une autre le temps de la visite.
  *
- * Les humeurs retenues ont toutes un lacet propre modeste : le demi-tour de tete
- * de la vue se calcule par rapport a lui (voir `GrokBot.vue`), et une expression
- * qui regarde deja loin de cote laisserait moins de marge au suivi.
+ * Le choix des humeurs n'est pas affaire de gout : voir `HUMEURS` dans
+ * `src/ui/gaze.ts`, qui explique le critere.
  */
-const HUMEURS = ['curieux', 'confus', 'surpris', 'attentif', 'heureux', 'mefiant']
 
 /**
  * Dans les reglages la boule redevient RONDE, quelle que soit la forme choisie.
@@ -289,6 +297,27 @@ function onSeek(t: number) {
   const { index, elapsed: offset } = blockAt(cycle.value.blocks, t)
   bot.value?.seek(index, offset)
 }
+
+/**
+ * Rejoue l'entree a CHAQUE arrivee dans les reglages.
+ *
+ * Sans ce recalage, le lecteur reprend la date de debut de bloc et le `elapsed`
+ * herites de la vue precedente : le bloc du tourbillon nait alors deja expire, et
+ * l'entree est consommee en une seule image — on ne voit que la fin du fondu, ce
+ * qui se lit comme un raté et non comme une mise en scene. Le cas se produit des
+ * que le curseur etait deja sur le bloc 0, ou le simple `block.value = 0` ne
+ * change rien et ne declenche donc aucun watcher.
+ *
+ * `flush: 'post'` : le composant doit avoir recu le nouveau montage avant qu'on
+ * lui demande de s'y recaler.
+ */
+watch(
+  view,
+  (v) => {
+    if (v === 'reglages') bot.value?.seek(0, 0)
+  },
+  { flush: 'post' }
+)
 
 </script>
 
@@ -436,6 +465,17 @@ function onSeek(t: number) {
         </template>
       </aside>
     </div>
+
+    <!--
+      Le nom du projet, en grand, fixe en bas de l'ecran et aligne a gauche sur le
+      panneau. Au niveau de la PAGE et non dans le panneau : celui-ci porte un
+      `transform`, ce qui en ferait le repere d'un enfant `fixed` — le mot ne
+      serait plus cale sur la fenetre. `aria-hidden` : purement graphique, le nom
+      est deja dans le titre du document et le `h1`.
+    -->
+    <p v-if="view === 'reglages' && !preview" class="wordmark" aria-hidden="true">
+      {{ NOM }}
+    </p>
 
     <Timeline
       v-if="view === 'animations' && !preview"

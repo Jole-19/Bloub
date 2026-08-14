@@ -107,15 +107,35 @@ vidéo, lui, n'a pas bougé : c'est celui du bot, dans `skins.ts` (`encre`,
   verrouille), et porte `baseBody` **et** `baseFace` : c'est ce qui lui permet de
   morpher depuis la forme choisie vers la boule, et de laisser le suivi du regard
   s'appliquer dès sa première image.
-- **`Look` (engine.ts) n'a pas la même sémantique sur ses deux axes, et c'est
-  voulu.** `yaw` est une direction **absolue** que le moteur mélange à la pose
-  (`mix`) ; `pitchOffset` est un **écart** ajouté. Le lacet doit être absolu parce
-  que seul le moteur connaît la pose *à l'instant t* : un appelant qui
-  compenserait le lacet de l'expression lirait sa valeur d'**arrivée** pendant que
-  le morph est encore en cours, et les yeux sautaient à chaque changement
-  d'humeur. Piège déjà tombé une fois. `spin` est un tour parcouru en chemin —
-  gratuit sur une sphère, et sans effet sur le point d'arrivée puisque `-360°` est
-  le même angle que `0`.
+- **`Look` (engine.ts) vise en ABSOLU, et c'est le moteur qui mélange.** `yaw` et
+  `pitch` remplacent ceux de la pose à mesure que `mix` monte, et ce mélange doit
+  être fait par le moteur parce que seul lui connaît la pose *à l'instant t* : un
+  appelant qui compenserait l'orientation de l'expression lirait sa valeur
+  d'**arrivée** pendant que le morph est encore en cours, et les yeux sautaient à
+  chaque changement d'humeur. Il faut aussi que ce soit absolu sur les **deux**
+  axes : en relatif, la hauteur des yeux suivait celle de chaque expression — et
+  « neutre » regarde 30° plus haut que les autres — donc ils tombaient d'un coup à
+  la première humeur. Ce qui distingue une humeur pendant le suivi, c'est la
+  **forme** de ses yeux, pas l'endroit où elle regarde. `spin`, enfin, est un tour
+  parcouru en chemin : gratuit sur une sphère, et sans effet sur le point
+  d'arrivée puisque `-360°` est le même angle que `0`.
+- **Les humeurs de la vue Réglages ont toutes un roulis nul** (`HUMEURS`,
+  `src/ui/gaze.ts`). Ce n'est pas une liste de goûts : le roulis, lui, n'est pas
+  neutralisé par le suivi, et il fait pencher la tête donc bouger les yeux
+  verticalement. Y ajouter « curieux » (roulis −15°) ramène le saut.
+- **`mix` et `wander` ne se confondent pas.** `mix` dit à quel point l'extérieur
+  commande la direction ; `wander` ce qui reste de dérive automatique. Quand le
+  pointeur bouge, la dérive doit s'éteindre — cumulées, le bot chercherait le
+  curseur sans jamais le tenir. Mais **sans** pointeur (arrivée au clavier, au
+  tactile, souris sortie de la fenêtre) la tête doit rester tournée *et* continuer
+  de vivre. Les avoir confondus figeait le regard dès l'ouverture de la vue. La
+  dérive s'ajoute donc **après** le mélange, sinon la cible l'annulerait avec la
+  pose.
+- **`setLook` refuse une cible non finie.** Le moteur garde la dernière : un `NaN`
+  posé une seule fois s'y installe pour toujours et le bot ne se repose plus
+  jamais. C'est arrivé — un `getBoundingClientRect` sur une boîte de taille nulle
+  (volet du navigateur masqué) donne `0 / 0` chez l'appelant. L'appelant est
+  corrigé, mais le moteur n'a pas à dépendre de la prudence des siens.
 
 ## Interface
 
@@ -138,6 +158,21 @@ vidéo, lui, n'a pas bougé : c'est celui du bot, dans `skins.ts` (`encre`,
   rogne donc rien. Et `clip` plutôt que `hidden`, sur le seul axe x — `hidden` en
   ferait un conteneur de défilement, ce qui forcerait `overflow-y` à suivre et
   couperait le bas du personnalisateur sur une fenêtre basse.
+- **Sur grand écran, la page ne défile pas : ce sont les panneaux.** `#app` rogne
+  les deux axes au-delà de 64rem, et les panneaux prennent `overflow-y: auto`.
+  Piège qui coûte une itération : une piste de grille **automatique** prend la
+  hauteur de son contenu et ignore le plafond du conteneur, donc le panneau se
+  faisait rogner sans rien avoir à faire défiler. D'où
+  `grid-template-rows: minmax(0, 1fr)` sur la scène — c'est lui qui rend la
+  hauteur définie et arme l'`overflow-y`.
+- **Le grand mot du pied de page est `absolute`, pas `fixed`.** `#app` fait
+  exactement la hauteur de la fenêtre, donc le bas est le même — mais un élément
+  fixe est *sorti* du document et ne suit pas le rebond élastique quand on tente
+  de faire défiler une page qui ne défile pas. En `absolute`, il accompagne le
+  geste, comme celui de la landing page de Yuzu dont il est repris. Sa taille se
+  calcule sur la place réellement disponible
+  (`calc((100vw - 7rem) / 3.05)`, 3,05 étant la largeur mesurée du mot en
+  cadratins) : en `vw` seul, son dernier caractère finissait hors de l'écran.
 - **L'URL décrit le lecteur, pas les vues.** `#etat=` n'est écrit que depuis la
   vue Animations. L'écrire ailleurs déclenchait un `hashchange` qui replaçait la
   tête de lecture sur les index du montage de l'utilisateur, alors que les

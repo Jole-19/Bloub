@@ -49,12 +49,15 @@ body,
  * quand la racine est en `visible`, donc l'y poser ne rogne rien du tout. `#app`
  * est un conteneur ordinaire, lui rogne pour de bon.
  *
- * `clip` et pas `hidden`, et sur le seul axe x : `hidden` en ferait un conteneur
- * de defilement, ce qui obligerait `overflow-y` a suivre et couperait le bas du
- * personnalisateur sur une fenetre basse.
+ * `clip` et pas `hidden` : `hidden` en ferait un conteneur de defilement, donc
+ * rendrait le debordement navigable au lieu de le supprimer. Ici sur le seul axe
+ * x, parce que sous 64rem la mise en page s'empile et doit defiler ; sur grand
+ * ecran une seconde regle rogne aussi la hauteur (voir plus bas).
  */
 #app {
   overflow-x: clip;
+  /* repere du grand mot du pied de page, qui s'y cale en `absolute` */
+  position: relative;
 }
 
 /*
@@ -116,6 +119,72 @@ body,
 }
 
 /*
+ * Le nom du projet en grand, au pied des reglages. Reprise de la landing page de
+ * Yuzu (`yuzu-releases/index.html`), transposee sur nos couleurs.
+ *
+ * Le fondu est un DEGRADE DE COULEUR revele au travers des lettres
+ * (`background-clip: text`), et non un `mask-image` : le texte n'est jamais peint,
+ * c'est le fond qu'on voit a travers lui. Il part deja faible (22 %) et s'eteint
+ * completement a 88 % de la hauteur, donc le bas des lettres est invisible avant
+ * meme d'etre rogne.
+ *
+ * `line-height` sous 1 fait deborder les glyphes de leur boite : c'est ce qui les
+ * fait rogner par le panneau et donne l'impression que le mot sort de la page.
+ * D'ou `pointer-events: none` — sans lui, les lettres qui remontent volent le clic
+ * des liens du dessus, piege deja tombe sur la landing page.
+ *
+ * `-webkit-text-fill-color` en plus de `color` : Safari ne rend pas le texte
+ * transparent avec le seul `color`. Tailwind n'a pas d'utilitaire pour cette
+ * propriete, d'ou cette regle ecrite a la main plutot qu'en classes.
+ */
+.wordmark {
+  /*
+   * `absolute` dans `#app`, et non `fixed`. `#app` fait exactement la hauteur de
+   * la fenetre, donc le bas est le meme — mais un element fixe est SORTI du
+   * document : il ne suit pas le rebond elastique quand on tente de defiler une
+   * page qui ne defile pas, alors que le mot de la landing page de Yuzu, lui, est
+   * dans le flux et accompagne le geste. En `absolute` il accompagne la page.
+   */
+  position: absolute;
+  /* aligne a gauche sur le panneau des reglages : meme retrait que son `pl-24` */
+  left: 6rem;
+  /* legerement sous le bord : c'est ce qui fait mordre les lettres par l'ecran */
+  bottom: -0.1em;
+  pointer-events: none;
+  user-select: none;
+  line-height: 0.78;
+  /*
+   * Dimensionne d'apres la place REELLEMENT disponible, et non en `vw` seul : le
+   * mot part a 6rem du bord gauche, donc une taille proportionnelle a la fenetre
+   * finissait par pousser le dernier B au-dela du bord droit. 3,05 est la largeur
+   * de « BLOUB » en cadratins a ce poids et cet interlettrage — mesuree, pas
+   * estimee — et le reste est la marge qu'on lui laisse a droite.
+   */
+  font-size: clamp(80px, calc((100vw - 7rem) / 3.05), 268px);
+  font-weight: 900;
+  letter-spacing: -0.045em;
+  background: linear-gradient(
+    180deg,
+    rgb(23 32 58 / 0.22) 0%,
+    rgb(23 32 58 / 0.1) 48%,
+    rgb(23 32 58 / 0) 88%
+  );
+  -webkit-background-clip: text;
+  background-clip: text;
+  -webkit-text-fill-color: transparent;
+  color: transparent;
+  /* il arrive avec le panneau, pas avant : meme retard que `.panneau--ouvert` */
+  opacity: 1;
+  transition: opacity 0.35s ease-out 0.2s;
+}
+
+@starting-style {
+  .wordmark {
+    opacity: 0;
+  }
+}
+
+/*
  * Deplacement de l'avatar d'une vue a l'autre.
  *
  * La scene est une grille de trois colonnes : panneau gauche, avatar, panneau
@@ -134,11 +203,41 @@ body,
  * de glissement a animer.
  */
 @media (width >= 64rem) {
+  /*
+   * Sur grand ecran la mise en page est calee sur la fenetre : rien ne doit faire
+   * defiler la PAGE. Le seul debordement vertical vient de la boule geante, dont
+   * la boite grandit avec elle (2,5 fois 460 px) alors que seule la boule est
+   * peinte — du vide qui allongeait la page de deux cents pixels.
+   *
+   * `clip` sur les deux axes ici, et non `hidden` : `hidden` ferait de `#app` un
+   * conteneur de defilement, donc rendrait ce debordement navigable au lieu de le
+   * supprimer. En dessous de 64rem la regle ne s'applique pas — la mise en page
+   * s'y empile et doit defiler pour de vrai.
+   */
+  #app {
+    overflow: clip;
+  }
+
   .scene {
     display: grid;
     grid-template-columns: 0 minmax(0, 1fr) 20rem;
     column-gap: 2.5rem;
     transition: grid-template-columns var(--bascule);
+    /*
+     * Bornee a la fenetre. C'est ce qui donne aux panneaux une hauteur CONTRAINTE,
+     * sans quoi leur `overflow-y: auto` ne sert a rien : une piste de grille sans
+     * plafond prend la hauteur de son contenu, la boite ne deborde jamais d'
+     * elle-meme, et le panneau se retrouvait coupe par le rognage de `#app` sans
+     * pouvoir defiler. Sur une fenetre basse, c'est le panneau qui defile.
+     */
+    max-height: 100%;
+    /*
+     * Piste unique DEFINIE, et non automatique. Une piste automatique prend la
+     * hauteur de son contenu et ignore le plafond du conteneur : le panneau
+     * gardait ses 773 px dans une fenetre de 620, se faisait rogner par `#app` et
+     * n'avait rien a defiler puisque sa boite ne debordait pas d'elle-meme.
+     */
+    grid-template-rows: minmax(0, 1fr);
   }
 
   .scene--gauche {
@@ -186,13 +285,20 @@ body,
   }
 
   /*
-   * Un panneau dans une colonne de largeur nulle doit disparaitre sans elargir
-   * sa piste : `min-width: 0` l'empeche de reclamer la largeur de son contenu,
-   * `overflow: hidden` coupe ce qui depasse pendant le glissement.
+   * Un panneau dans une colonne de largeur nulle doit disparaitre sans elargir sa
+   * piste : `min-width: 0` l'empeche de reclamer la largeur de son contenu, et le
+   * rognage coupe ce qui depasse pendant le glissement.
    */
   .panneau {
     min-width: 0;
-    overflow: hidden;
+    /*
+     * `hidden` en largeur pour que la colonne qui se referme ecrase son contenu,
+     * `auto` en hauteur pour que ce soit le PANNEAU qui defile et non la page :
+     * la grille des vignettes du personnalisateur est plus haute qu'une fenetre
+     * basse, et la page ne defile plus (voir `#app` ci-dessus).
+     */
+    overflow-x: hidden;
+    overflow-y: auto;
     opacity: 0;
     transition: opacity 0.3s ease-out;
   }

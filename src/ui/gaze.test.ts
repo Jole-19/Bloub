@@ -2,20 +2,28 @@ import { describe, expect, it } from 'vitest'
 import { BotEngine } from '@/bot/engine'
 import { EXPRESSIONS, EXPRESSION_BY_ID } from '@/bot/expressions'
 import { SHAPE_BY_ID } from '@/bot/skins'
-import { lookTarget, SPIN, TURN, YAW_MAX, type Aim } from './gaze'
+import { HUMEURS, lookTarget, PITCH, SPIN, TURN, YAW_MAX, type Aim } from './gaze'
 
 const cercle = () => SHAPE_BY_ID.get('cercle')!.radii
 
 /** Visee au repos : pointeur au centre du bot, demi-tour acheve. */
-const vise = (o: Partial<Aim> = {}): Aim => ({ nx: 0, ny: 0, tour: 1, ...o })
+const vise = (o: Partial<Aim> = {}): Aim => ({ nx: 0, ny: 0, tour: 1, pointer: true, ...o })
 
 describe('cible de regard', () => {
   it('laisse la pose commander avant que l arrivee ne commence', () => {
-    const cible = lookTarget(vise({ tour: 0 }))
+    // sans pointeur : rien n'est pilote du tout, ni la direction ni la derive
+    const cible = lookTarget(vise({ tour: 0, pointer: false }))
+    // emprise nulle : peu importe la direction visee, la pose commande seule...
     expect(cible.mix).toBe(0)
-    expect(cible.pitchOffset).toBeCloseTo(0, 6)
-    // un tour entier reste a parcourir, et c'est le meme angle que zero
+    // ...et un tour entier reste a parcourir, qui est le meme angle que zero
     expect(cible.spin).toBe(SPIN)
+
+    // ce qui compte n'est pas la valeur des champs mais l'image rendue :
+    // au depart, elle doit etre celle d'un bot qu'on ne pilote pas du tout
+    const nu = new BotEngine(100, 'idle', cercle(), EXPRESSION_BY_ID.get('neutre')!)
+    const debut = new BotEngine(100, 'idle', cercle(), EXPRESSION_BY_ID.get('neutre')!)
+    debut.setLook(cible, 0)
+    expect(debut.sample(1).eyes[0]!.matrix).toBe(nu.sample(1).eyes[0]!.matrix)
   })
 
   it('tourne la tete vers la gauche, du cote du panneau', () => {
@@ -30,8 +38,8 @@ describe('cible de regard', () => {
 
     // tangage positif = regard vers le haut, alors que le y de l'ecran descend :
     // c'est le signe sur lequel on se trompe
-    expect(lookTarget(vise({ ny: -1 })).pitchOffset).toBeGreaterThan(0)
-    expect(lookTarget(vise({ ny: 1 })).pitchOffset).toBeLessThan(0)
+    expect(lookTarget(vise({ ny: -1 })).pitch).toBeGreaterThan(0)
+    expect(lookTarget(vise({ ny: 1 })).pitch).toBeLessThan(0)
   })
 
   it('fond le tour a mesure que l arrivee se fait', () => {
@@ -67,7 +75,7 @@ describe('les deux yeux restent visibles', () => {
   it('garde de la marge : le suivi ne va pas jusqu au point de rupture', () => {
     // si cette marge disparait, c'est que YAW_MAX ou TURN a ete pousse trop loin
     const moteur = new BotEngine(100, 'idle', cercle(), EXPRESSION_BY_ID.get('neutre')!)
-    moteur.setLook({ yaw: -(TURN + YAW_MAX) - 25, pitchOffset: 0, mix: 1, spin: 0 }, 0)
+    moteur.setLook({ yaw: -(TURN + YAW_MAX) - 25, pitch: 0, mix: 1, spin: 0, wander: 0 }, 0)
     expect(moteur.sample(1).eyes).toHaveLength(2)
   })
 })
@@ -94,7 +102,48 @@ describe('le tour sur soi-meme', () => {
     // les aurait mis : c'est ce qui rend l'atterrissage juste sans reglage
     const complet = image(1).eyes[0]!.matrix
     const sansTour = new BotEngine(100, 'idle', cercle(), EXPRESSION_BY_ID.get('neutre')!)
-    sansTour.setLook({ yaw: -TURN, pitchOffset: 0, mix: 1, spin: 0 }, 0)
+    sansTour.setLook({ yaw: -TURN, pitch: PITCH, mix: 1, spin: 0, wander: 0 }, 0)
     expect(complet).toBe(sansTour.sample(1).eyes[0]!.matrix)
+  })
+})
+
+describe('stabilite du regard entre expressions', () => {
+  /** Ordonnee de l'oeil interieur, en px de viewBox (y descend a l'ecran). */
+  const oeilY = (m: BotEngine) =>
+    +/matrix\([^,]+,[^,]+,[^,]+,[^,]+,-?[\d.]+,(-?[\d.]+)/.exec(m.sample(1).eyes[0]!.matrix)![1]!
+
+  it('garde les yeux a la meme hauteur, quelle que soit l humeur affichee', () => {
+    /**
+     * Le bug qu'on verrouille : quand le tangage etait un ECART, la hauteur des
+     * yeux suivait celle de l'expression. « Neutre » regarde a +28,6deg et les
+     * humeurs entre -9 et +9, donc les yeux tombaient d'un coup au premier
+     * changement d'humeur — ce qui se lit comme un defaut, pas comme une
+     * expression.
+     */
+    const hauteurs = HUMEURS.map((id) => {
+      const m = new BotEngine(100, 'idle', cercle(), EXPRESSION_BY_ID.get(id)!)
+      m.setLook(lookTarget(vise()), 0)
+      return oeilY(m)
+    })
+    const ecart = Math.max(...hauteurs) - Math.min(...hauteurs)
+    // sur une boule de 100 de rayon : quelques pixels, pas trente
+    expect(ecart, `ecart de hauteur de ${ecart.toFixed(1)} px`).toBeLessThan(4)
+  })
+
+  it('sans pilotage, les expressions gardent bien des hauteurs differentes', () => {
+    // le contre-test : c'est le SUIVI qui stabilise, pas les expressions qui
+    // auraient perdu leur caractere vertical
+    const hauteurs = EXPRESSIONS.map((e) =>
+      oeilY(new BotEngine(100, 'idle', cercle(), EXPRESSION_BY_ID.get(e.id)!))
+    )
+    expect(Math.max(...hauteurs) - Math.min(...hauteurs)).toBeGreaterThan(30)
+  })
+
+  it('ne retient que des humeurs a roulis nul, sinon la tete penche', () => {
+    // c'est le critere de la liste, et il ne se devine pas : le roulis n'est pas
+    // neutralise par le suivi, contrairement au lacet et au tangage
+    for (const id of HUMEURS) {
+      expect(EXPRESSION_BY_ID.get(id)!.gaze.roll, id).toBe(0)
+    }
   })
 })

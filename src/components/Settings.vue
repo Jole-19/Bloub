@@ -17,6 +17,28 @@ const credits = computed(() => {
   const [avant = '', apres = ''] = t('settings.credits').split('{name}')
   return { avant, apres }
 })
+
+/**
+ * Clavier du groupe de radios.
+ *
+ * Declarer `role="radiogroup"` PROMET ce comportement, et des `<button>` ne le
+ * donnent pas tout seuls : les fleches doivent deplacer le choix, et le groupe
+ * entier ne doit compter que pour UN arret de tabulation. D'ou aussi le
+ * `tabindex` mobile dans le gabarit — seule l'option cochee est atteignable par
+ * Tab, les fleches font le reste, comme dans un groupe de radios natif.
+ */
+function auClavier(event: KeyboardEvent, index: number) {
+  const pas = { ArrowRight: 1, ArrowDown: 1, ArrowLeft: -1, ArrowUp: -1 }[event.key]
+  if (!pas) return
+  event.preventDefault()
+  // on tourne en rond, comme un groupe de radios natif
+  const cible = LANGUES[(index + pas + LANGUES.length) % LANGUES.length]!
+  langue.value = cible.id
+  // le focus suit le choix, sinon les fleches suivantes repartent de l'ancien
+  const boutons = (event.currentTarget as HTMLElement).parentElement?.children
+  const suivant = boutons?.[LANGUES.indexOf(cible)]
+  if (suivant instanceof HTMLElement) suivant.focus()
+}
 </script>
 
 <template>
@@ -39,13 +61,15 @@ const credits = computed(() => {
     -->
     <div class="mt-2 flex flex-col gap-1" role="radiogroup" :aria-label="t('settings.language')">
       <button
-        v-for="l in LANGUES"
+        v-for="(l, i) in LANGUES"
         :key="l.id"
         type="button"
         role="radio"
         :aria-checked="l.id === langue"
         :aria-label="l.nom"
         :lang="l.tag"
+        :tabindex="l.id === langue ? 0 : -1"
+        @keydown="auClavier($event, i)"
         class="flex cursor-pointer items-center gap-2.5 rounded-xl border px-3 py-2 text-left text-sm transition"
         :class="
           l.id === langue

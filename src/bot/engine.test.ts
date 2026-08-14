@@ -260,8 +260,8 @@ describe('regard qui suit le pointeur', () => {
   it('porte le regard vers le lacet vise, en absolu', () => {
     const droite = new BotEngine(100, 'idle')
     const gauche = new BotEngine(100, 'idle')
-    droite.setLook({ yaw: 45, pitchOffset: 0, mix: 1, spin: 0 }, 0)
-    gauche.setLook({ yaw: -45, pitchOffset: 0, mix: 1, spin: 0 }, 0)
+    droite.setLook({ yaw: 45, pitch: 0, mix: 1, spin: 0, wander: 0 }, 0)
+    gauche.setLook({ yaw: -45, pitch: 0, mix: 1, spin: 0, wander: 0 }, 0)
     const t = 1 + BotEngine.LOOK_MORPH
     expect(oeilX(droite, t)).toBeGreaterThan(oeilX(gauche, t) + 40)
   })
@@ -283,8 +283,8 @@ describe('regard qui suit le pointeur', () => {
     // sans cible, les deux regardent franchement ailleurs l'un de l'autre
     expect(Math.abs(oeilX(a, 1) - oeilX(b, 1))).toBeGreaterThan(40)
 
-    a.setLook({ yaw: -26, pitchOffset: 0, mix: 1, spin: 0 }, 1)
-    b.setLook({ yaw: -26, pitchOffset: 0, mix: 1, spin: 0 }, 1)
+    a.setLook({ yaw: -26, pitch: 0, mix: 1, spin: 0, wander: 0 }, 1)
+    b.setLook({ yaw: -26, pitch: 0, mix: 1, spin: 0, wander: 0 }, 1)
     // ...et le meme lacet vise les pose exactement au meme endroit
     const t = 1 + BotEngine.LOOK_MORPH
     expect(oeilX(a, t)).toBeCloseTo(oeilX(b, t), 5)
@@ -293,14 +293,14 @@ describe('regard qui suit le pointeur', () => {
   it('parcourt le tour demande sans changer le point d arrivee', () => {
     const direct = new BotEngine(100, 'idle')
     const tourne = new BotEngine(100, 'idle')
-    direct.setLook({ yaw: -26, pitchOffset: 0, mix: 1, spin: 0 }, 0)
-    tourne.setLook({ yaw: -26, pitchOffset: 0, mix: 1, spin: 360 }, 0)
+    direct.setLook({ yaw: -26, pitch: 0, mix: 1, spin: 0, wander: 0 }, 0)
+    tourne.setLook({ yaw: -26, pitch: 0, mix: 1, spin: 360, wander: 0 }, 0)
     const t = 1 + BotEngine.LOOK_MORPH
     // un tour complet est le meme angle : l image doit etre identique au pixel
     expect(tourne.sample(t).eyes[0]!.matrix).toBe(direct.sample(t).eyes[0]!.matrix)
     // ...alors qu a mi-tour la face est a l oppose du spectateur
     const mi = new BotEngine(100, 'idle')
-    mi.setLook({ yaw: -26, pitchOffset: 0, mix: 1, spin: 180 }, 0)
+    mi.setLook({ yaw: -26, pitch: 0, mix: 1, spin: 180, wander: 0 }, 0)
     expect(mi.sample(t).eyes).toHaveLength(0)
   })
 
@@ -308,10 +308,10 @@ describe('regard qui suit le pointeur', () => {
     // au-dela, l oeil exterieur passe derriere le limbe de la sphere et le
     // moteur le retire : la butee de GrokBot.vue doit rester en dessous
     for (const yaw of [-42, -26, -10]) {
-      for (const pitchOffset of [-13, 0, 13]) {
+      for (const pitch of [-3, 10, 23]) {
         const e = new BotEngine(100, 'idle')
-        e.setLook({ yaw, pitchOffset, mix: 1, spin: 0 }, 0)
-        expect(e.sample(1).eyes, `yaw ${yaw} pitch ${pitchOffset}`).toHaveLength(2)
+        e.setLook({ yaw, pitch, mix: 1, spin: 0, wander: 0 }, 0)
+        expect(e.sample(1).eyes, `yaw ${yaw} pitch ${pitch}`).toHaveLength(2)
       }
     }
   })
@@ -319,7 +319,7 @@ describe('regard qui suit le pointeur', () => {
   it('eteint la derive automatique quand le pointeur commande', () => {
     const libre = new BotEngine(100, 'idle')
     const tenu = new BotEngine(100, 'idle')
-    tenu.setLook({ yaw: REST_GAZE.yaw, pitchOffset: 0, mix: 1, spin: 0 }, 0)
+    tenu.setLook({ yaw: REST_GAZE.yaw, pitch: 0, mix: 1, spin: 0, wander: 0 }, 0)
 
     // Meme cible que le regard de repos : ce qui reste de mouvement
     // n'est donc QUE la derive. Elle doit s'etre eteinte, a ceci pres que le
@@ -331,7 +331,7 @@ describe('regard qui suit le pointeur', () => {
   it('revient au regard de l etat quand la cible est relachee', () => {
     const nu = new BotEngine(100, 'idle')
     const e = new BotEngine(100, 'idle')
-    e.setLook({ yaw: -20, pitchOffset: -10, mix: 1, spin: 0 }, 0)
+    e.setLook({ yaw: -20, pitch: -10, mix: 1, spin: 0, wander: 0 }, 0)
     e.sample(1)
     e.setLook(null, 1)
     // le retour est progressif, puis complet
@@ -342,7 +342,7 @@ describe('regard qui suit le pointeur', () => {
 
   it('reste une fonction pure du temps pendant le rattrapage', () => {
     const e = new BotEngine(100, 'idle')
-    e.setLook({ yaw: -18, pitchOffset: -8, mix: 1, spin: 0 }, 1)
+    e.setLook({ yaw: -18, pitch: -8, mix: 1, spin: 0, wander: 0 }, 1)
     const milieu = e.sample(1.1).eyes[0]!.matrix
     // relire une date passee doit redonner exactement la meme image
     e.sample(3)
@@ -353,5 +353,53 @@ describe('regard qui suit le pointeur', () => {
     // une vignette figee n appelle pas setLook : son regard doit deriver comme avant
     const e = new BotEngine(100, 'idle')
     expect(amplitude(e, 0, 6)).toBeGreaterThan(4)
+  })
+})
+
+describe('robustesse du regard', () => {
+  it('refuse une cible non finie plutot que de s en souvenir', () => {
+    /**
+     * Le moteur GARDE la derniere cible : un `NaN` pose une seule fois se
+     * propagerait a chaque image et le bot ne se reposerait plus jamais. Arrive
+     * pour de vrai — `getBoundingClientRect` sur une boite de taille nulle donne
+     * `0 / 0` chez l'appelant.
+     */
+    const sain = new BotEngine(100, 'idle')
+    const e = new BotEngine(100, 'idle')
+    e.setLook({ yaw: NaN, pitch: 10, mix: 1, spin: 0, wander: 0 }, 0)
+    expect(e.sample(1).eyes[0]!.matrix).toBe(sain.sample(1).eyes[0]!.matrix)
+
+    // et une cible saine posee ensuite fonctionne toujours
+    e.setLook({ yaw: -26, pitch: 10, mix: 1, spin: 0, wander: 0 }, 1)
+    expect(e.sample(1 + BotEngine.LOOK_MORPH).eyes[0]!.matrix).not.toBe(
+      sain.sample(1 + BotEngine.LOOK_MORPH).eyes[0]!.matrix
+    )
+  })
+
+  it('garde une tete tournee vivante quand aucun pointeur ne la commande', () => {
+    /**
+     * Regression corrigee : `mix` eteignait la derive en meme temps qu'il prenait
+     * la direction. Arriver sur la vue au clavier ou au tactile donnait alors un
+     * avatar completement fige, ce qui contredit la definition de l'etat de repos
+     * (« derive du regard et clignements »).
+     */
+    const oeilX = (e: BotEngine, t: number) => +/matrix\([^,]+,[^,]+,[^,]+,[^,]+,(-?[\d.]+)/
+      .exec(e.sample(t).eyes[0]!.matrix)![1]!
+    const amplitude = (e: BotEngine) => {
+      const xs: number[] = []
+      for (let t = 1; t <= 8; t += 0.1) xs.push(oeilX(e, t))
+      return Math.max(...xs) - Math.min(...xs)
+    }
+
+    const sansPointeur = new BotEngine(100, 'idle')
+    sansPointeur.setLook({ yaw: -26, pitch: 10, mix: 1, spin: 0, wander: 1 }, 0)
+    const avecPointeur = new BotEngine(100, 'idle')
+    avecPointeur.setLook({ yaw: -26, pitch: 10, mix: 1, spin: 0, wander: 0 }, 0)
+
+    // la tete est tournee dans les deux cas...
+    expect(oeilX(sansPointeur, 1)).toBeLessThan(0)
+    expect(oeilX(avecPointeur, 1)).toBeLessThan(0)
+    // ...mais seule celle que personne ne commande continue de deriver
+    expect(amplitude(sansPointeur)).toBeGreaterThan(5 * amplitude(avecPointeur))
   })
 })

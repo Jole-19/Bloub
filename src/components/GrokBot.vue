@@ -138,7 +138,6 @@ defineExpose({ seek })
 
 /* ------------------------------------------------------- regard qui suit */
 
-
 const svg = ref<SVGSVGElement | null>(null)
 
 /** Derniere position connue du pointeur, en coordonnees client. */
@@ -186,19 +185,24 @@ function aim() {
     return
   }
   const box = svg.value?.getBoundingClientRect()
-  if (!box) return
-  // le demi-tour part quand la main est prise, pas a l'entree dans la vue :
-  // l'orbite joue d'abord, les yeux tournent ensuite
+  /*
+   * Une boite sans surface : il n'y a rien a viser, et surtout la normalisation
+   * ci-dessous deviendrait `0 / 0`, donc `NaN`. Or le moteur GARDE la derniere
+   * cible : un seul NaN pose une fois y reste pour toujours, et le bot ne se
+   * repose plus jamais. Ca arrive pour de vrai quand le volet du navigateur est
+   * masque — `getBoundingClientRect` rend alors des zeros.
+   */
+  if (!box || box.width === 0 || box.height === 0) return
+  // le tour part a l'entree dans la vue, en meme temps que les anneaux
   if (!aiming) turnSince = clock
+  const demiLargeur = Math.max(1, window.innerWidth / 2)
+  const demiHauteur = Math.max(1, window.innerHeight / 2)
   engine.setLook(
     lookTarget({
-      nx: pointer
-        ? clamp((pointer.x - (box.left + box.width / 2)) / (window.innerWidth / 2), -1, 1)
-        : 0,
-      ny: pointer
-        ? clamp((pointer.y - (box.top + box.height / 2)) / (window.innerHeight / 2), -1, 1)
-        : 0,
-      tour: easings.easeOutQuint(clamp((clock - turnSince) / TURN_TIME))
+      nx: pointer ? clamp((pointer.x - (box.left + box.width / 2)) / demiLargeur, -1, 1) : 0,
+      ny: pointer ? clamp((pointer.y - (box.top + box.height / 2)) / demiHauteur, -1, 1) : 0,
+      tour: easings.easeOutQuint(clamp((clock - turnSince) / TURN_TIME)),
+      pointer: pointer !== null
     }),
     clock
   )

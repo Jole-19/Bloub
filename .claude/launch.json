@@ -4,8 +4,8 @@
     {
       "name": "grok-bot",
       "runtimeExecutable": "pnpm",
-      "runtimeArgs": ["dev", "--port", "5191"],
-      "port": 5191
+      "runtimeArgs": ["dev", "--port", "5190"],
+      "port": 5190
     }
   ]
 }
