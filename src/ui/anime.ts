@@ -163,13 +163,17 @@ function palette(images: Uint8ClampedArray[]) {
 }
 
 /**
- * Assemble des images en GIF anime, sur fond transparent.
+ * Assemble des images en GIF anime.
  *
  * La transparence du GIF est sur UN bit : un pixel est opaque ou invisible, rien
- * entre les deux. Le bord antialiase de la boule est donc tranche a 50 %
- * d'opacite et ressort en marches d'escalier. Ce n'est pas un defaut a corriger,
- * c'est le format — la parade est d'exporter plus grand que la taille d'affichage
- * pour que la reduction du navigateur relisse le bord.
+ * entre les deux. Sur un fond transparent, le bord antialiase de la boule est donc
+ * tranche a 50 % d'opacite et ressort en marches d'escalier. Ce n'est pas un defaut
+ * a corriger, c'est le format — d'ou le choix laisse a l'utilisateur entre ce bord
+ * dur et un fond plein, ou le bord reste lisse parce qu'il a de quoi se fondre.
+ *
+ * La transparence est DEDUITE des images, pas demandee : des images deja aplaties
+ * sur un fond n'ont pas a declarer d'index transparent, et surtout pas a etre
+ * eliminees « retour au fond » entre deux — ce qui ferait clignoter le fond.
  *
  * Le GIF n'existe que pour les endroits qui refusent le SVG anime, comme les
  * avatars animes de Discord ou de Slack. Partout ailleurs le SVG est meilleur.
@@ -181,6 +185,11 @@ export function gifAnime(
   delaiMs: number
 ): Uint8Array<ArrayBuffer> {
   if (!images.length) throw new Error('aucune image a emballer')
+
+  const transparence = images.some((px) => {
+    for (let p = 3; p < px.length; p += 4) if (px[p]! < 128) return true
+    return false
+  })
 
   const couleurs = palette(images)
   // Une palette GIF a une taille en puissance de deux, et il faut au moins deux
@@ -226,9 +235,14 @@ export function gifAnime(
       0x21,
       0xf9,
       0x04,
-      // Elimination « retour au fond » (2 << 2) : sans elle les zones
-      // transparentes laissent voir l'image precedente et la boule traine.
-      (2 << 2) | 0x01,
+      // Sur fond transparent : elimination « retour au fond » (2) et index
+      // transparent declare, sinon les zones vides laissent voir l'image
+      // precedente et la boule traine derriere elle.
+      //
+      // Sur fond plein : « laisser en place » (1), et surtout PAS de retour au
+      // fond — chaque image couvre toute la toile, donc effacer entre deux ne
+      // sert qu'a faire clignoter le fond.
+      transparence ? (2 << 2) | 0x01 : 1 << 2,
       ...le(delai, 2),
       0, // index transparent
       0x00,

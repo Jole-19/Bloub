@@ -2,6 +2,10 @@ import { describe, expect, it } from 'vitest'
 import { SHAPES } from '@/bot/skins'
 import {
   ACTIONS,
+  BLANC,
+  FONDS_GIF,
+  FOND_GIF_DEFAUT,
+  couleurDeFond,
   ACTION_BY_ID,
   ACTION_DEFAUT,
   DEMI_CADRE,
@@ -92,6 +96,27 @@ describe('catalogue des exports', () => {
       expect(action.taille).toBeGreaterThan(0)
       expect(Number.isFinite(action.taille)).toBe(true)
     }
+  })
+})
+
+describe('fond du gif', () => {
+  /* Le GIF est le SEUL format a poser la question : lui seul a 1 bit d'alpha. */
+  it('ne concerne que le gif', () => {
+    const anime = ACTIONS.filter((a) => a.mode === 'anime' || a.mode === 'gif')
+    expect(anime.filter((a) => a.extension === 'gif')).toHaveLength(1)
+  })
+
+  it('propose blanc et transparent, blanc par defaut', () => {
+    expect(FONDS_GIF).toEqual(['blanc', 'transparent'])
+    expect(FONDS_GIF).toContain(FOND_GIF_DEFAUT)
+    expect(FOND_GIF_DEFAUT).toBe('blanc')
+  })
+
+  /* « Fond blanc » doit etre BLANC, pas le `--paper` legerement casse du site. */
+  it('peint du blanc pur, et rien du tout en transparent', () => {
+    expect(couleurDeFond('blanc')).toBe(BLANC)
+    expect(BLANC).toBe('#ffffff')
+    expect(couleurDeFond('transparent')).toBeNull()
   })
 })
 

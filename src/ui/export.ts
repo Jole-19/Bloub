@@ -116,6 +116,28 @@ export const GIF_PAS = 1 / GIF_FPS
 export const GIF_TAILLE = 320
 
 /**
+ * Fond du GIF, au choix de l'utilisateur.
+ *
+ * C'est le seul export ou la question se pose : les autres ont 8 bits d'alpha et
+ * un bord parfaitement lisse sur un fond transparent. Le GIF n'en a qu'un, donc
+ * son bord transparent est dur et se voit — le fond plein est le moyen de le
+ * lisser, au prix d'une couleur cuite dans l'image.
+ *
+ * `blanc` par defaut : c'est celui qui a l'air propre partout, la ou le
+ * transparent montre ses marches d'escalier sur un fond de couleur.
+ */
+export type FondGif = 'blanc' | 'transparent'
+
+export const FONDS_GIF: FondGif[] = ['blanc', 'transparent']
+export const FOND_GIF_DEFAUT: FondGif = 'blanc'
+
+/** Blanc pur, et non le `--paper` du site : « fond blanc » doit etre blanc. */
+export const BLANC = '#ffffff'
+
+/** La couleur a peindre sous la boule, ou `null` pour ne rien peindre. */
+export const couleurDeFond = (fond: FondGif) => (fond === 'blanc' ? BLANC : null)
+
+/**
  * UNE seule taille de PNG, volontairement : proposer 1024 et 2048 obligeait
  * l'utilisateur a trancher une question qui n'est pas la sienne. 1024 couvre
  * toutes les specs de photo de profil (Discord 128, X 400, GitHub 500, Slack

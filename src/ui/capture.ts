@@ -44,7 +44,12 @@ export function svgAutonome(svg: SVGSVGElement, taille: number) {
  * Le canvas n'est jamais souille : le SVG du bot n'a ni `<foreignObject>` ni
  * `<image>`, les deux seules choses qui feraient echouer `toBlob`.
  */
-async function dessine(markup: string, taille: number, canvas: HTMLCanvasElement) {
+async function dessine(
+  markup: string,
+  taille: number,
+  canvas: HTMLCanvasElement,
+  fond: string | null = null
+) {
   const url = URL.createObjectURL(new Blob([markup], { type: 'image/svg+xml' }))
   try {
     const img = new Image()
@@ -53,13 +58,17 @@ async function dessine(markup: string, taille: number, canvas: HTMLCanvasElement
 
     canvas.width = taille
     canvas.height = taille
-    // `alpha` par defaut : c'est ce qui laisse le fond transparent. Le bot
-    // s'exporte donc en vignette detachee, posable sur n'importe quel fond.
+    // `alpha` par defaut : c'est ce qui laisse le fond transparent quand aucune
+    // couleur n'est demandee. Le bot s'exporte alors en vignette detachee.
     const ctx = canvas.getContext('2d')
     if (!ctx) throw new Error('canvas indisponible')
     // Le canvas est reutilise d'une image a l'autre pour l'export anime : sans
     // effacement, une image aux yeux fermes garderait les yeux ouverts dessous.
     ctx.clearRect(0, 0, taille, taille)
+    if (fond) {
+      ctx.fillStyle = fond
+      ctx.fillRect(0, 0, taille, taille)
+    }
     ctx.drawImage(img, 0, 0, taille, taille)
     return ctx
   } finally {
@@ -148,7 +157,13 @@ export async function sequenceDuBot<T>(
   taille: number,
   nombre: number,
   pas: number,
-  lis: (svg: SVGSVGElement, index: number) => T | Promise<T>
+  lis: (svg: SVGSVGElement, index: number) => T | Promise<T>,
+  /**
+   * Couleur des yeux. Ce sont des TROUS remplis de cette teinte, donc sur un
+   * export a fond plein elle doit valoir exactement celle du fond — sinon
+   * l'ancienne teinte du site reste visible dedans, en anneau plus sombre.
+   */
+  paper?: string
 ): Promise<T[]> {
   const hote = document.createElement('div')
   // hors du flux et hors de vue, mais RENDU : un `display:none` ne donnerait pas
@@ -158,7 +173,8 @@ export async function sequenceDuBot<T>(
 
   const date = ref(0)
   const app = createApp({
-    render: () => h(BloubBot, { ...reglages, size: taille, frozenAt: date.value })
+    render: () =>
+      h(BloubBot, { ...reglages, size: taille, frozenAt: date.value, ...(paper ? { paper } : {}) })
   })
   app.mount(hote)
 
@@ -222,14 +238,23 @@ export async function versGifAnime(
   reglages: ReglagesBot,
   taille: number,
   nombre: number,
-  pas: number
+  pas: number,
+  fond: string | null = null
 ): Promise<Blob> {
   // Un seul canvas pour toute la sequence : en creer un par image laisse des
   // dizaines de contextes au ramasse-miettes pendant l'export.
   const canvas = document.createElement('canvas')
-  const images = await sequenceDuBot(reglages, taille, nombre, pas, async (svg) => {
-    const ctx = await dessine(svgAutonome(svg, taille), taille, canvas)
-    return ctx.getImageData(0, 0, taille, taille).data
-  })
+  const images = await sequenceDuBot(
+    reglages,
+    taille,
+    nombre,
+    pas,
+    async (svg) => {
+      const ctx = await dessine(svgAutonome(svg, taille), taille, canvas, fond)
+      return ctx.getImageData(0, 0, taille, taille).data
+    },
+    // les yeux prennent la teinte du fond pour s'y fondre exactement
+    fond ?? undefined
+  )
   return new Blob([gifAnime(images, taille, taille, Math.round(pas * 1000))], { type: 'image/gif' })
 }

@@ -4,6 +4,7 @@ import BotTile from '@/components/BotTile.vue'
 import Customizer from '@/components/Customizer.vue'
 import BloubBot from '@/components/BloubBot.vue'
 import ExportBar from '@/components/ExportBar.vue'
+import GifDialog from '@/components/GifDialog.vue'
 import Settings from '@/components/Settings.vue'
 import SideRail, { type ViewId } from '@/components/SideRail.vue'
 import Timeline from '@/components/Timeline.vue'
@@ -21,11 +22,14 @@ import {
   ACTION_BY_ID,
   ANIM_IMAGES,
   ANIM_PAS,
+  FOND_GIF_DEFAUT,
   GIF_IMAGES,
   GIF_PAS,
+  couleurDeFond,
   nomFichier,
   type ActionId,
-  type EtatExport
+  type EtatExport,
+  type FondGif
 } from '@/ui/export'
 import { HUMEURS } from '@/ui/gaze'
 import { INTRO, INTRO_GAZE, POSE_AT, introDue } from '@/ui/intro'
@@ -497,10 +501,25 @@ let confirmation: ReturnType<typeof setTimeout> | undefined
  * Ce que l'utilisateur voit est bien ce qu'il obtient, au cadrage pres — c'est
  * le noeud vivant qui est serialise, pas un second rendu monte a cote.
  */
-async function exporte(id: ActionId) {
+/**
+ * Fond du GIF, et boite qui le demande. Le GIF est le SEUL format a poser la
+ * question : lui seul a une transparence sur un bit, donc un bord dur a arbitrer.
+ */
+const fondGif = ref<FondGif>(FOND_GIF_DEFAUT)
+const dialogueGif = ref(false)
+
+async function exporte(id: ActionId, confirme = false) {
   // Garde SYNCHRONE, en plus du `disabled` du bouton : celui-ci n'existe qu'apres
   // un rendu, donc deux clics dans la meme image telechargeaient deux fois.
   if (etatExport.value === 'occupe') return
+
+  // Le GIF demande son fond avant de partir, et c'est la boite qui rappelle avec
+  // `confirme`. Se fier a l'etat de la boite ne marcherait pas : elle se referme
+  // AVANT d'emettre, donc on la verrait fermee et on la rouvrirait sans fin.
+  if (!confirme && ACTION_BY_ID.get(id)?.mode === 'gif') {
+    dialogueGif.value = true
+    return
+  }
   const action = ACTION_BY_ID.get(id)
   const svg = bot.value?.$el as SVGSVGElement | null | undefined
   if (!action || !svg) return
@@ -518,7 +537,8 @@ async function exporte(id: ActionId) {
       etatExport.value = 'exporte'
     } else if (action.mode === 'gif') {
       const reglages = { shape: shape.value, color: color.value, expression: expression.value }
-      telecharge(await versGifAnime(reglages, action.taille, GIF_IMAGES, GIF_PAS), nom())
+      const fond = couleurDeFond(fondGif.value)
+      telecharge(await versGifAnime(reglages, action.taille, GIF_IMAGES, GIF_PAS, fond), nom())
       etatExport.value = 'exporte'
     } else {
       const markup = svgAutonome(svg, action.taille)
@@ -726,6 +746,12 @@ watch(
           :inert="nue || barreCachee"
         >
           <ExportBar :etat="etatExport" @exporter="exporte" />
+          <!-- le GIF est le seul format a demander son fond : voir `exporte` -->
+          <GifDialog
+            v-model:open="dialogueGif"
+            v-model:fond="fondGif"
+            @confirm="exporte('gif', true)"
+          />
         </div>
       </main>
 

@@ -187,6 +187,25 @@ describe('gif anime', () => {
     expect(() => gifAnime([], 16, 16, 50)).toThrow()
   })
 
+  /**
+   * La transparence est DEDUITE des pixels. Des images deja aplaties sur un fond
+   * ne doivent pas declarer d'index transparent, et surtout pas etre eliminees
+   * « retour au fond » entre deux — ce qui ferait clignoter le fond.
+   */
+  it('n annonce pas de transparence sur des images opaques', () => {
+    const cote = 8
+    const opaque = new Uint8ClampedArray(cote * cote * 4).fill(255)
+    const g = litGif(gifAnime([opaque, opaque], cote, cote, 50))
+    expect(g.transparent).toBeNull()
+    expect(g.elimination).toBe(1) // « laisser en place »
+  })
+
+  it('annonce la transparence des qu une image en a', () => {
+    const g = litGif(gifAnime(suite, 16, 16, 50))
+    expect(g.transparent).toBe(0)
+    expect(g.elimination).toBe(2) // « retour au fond »
+  })
+
   it('reste sous la limite de 256 couleurs meme sur du degrade', () => {
     const degrade = new Uint8ClampedArray(64 * 64 * 4)
     for (let i = 0; i < 64 * 64; i++) {

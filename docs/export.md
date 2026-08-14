@@ -127,11 +127,23 @@ PNG has 8 bits of alpha.
 Discord and Slack accept a GIF as an animated avatar and an SVG nowhere, which is its whole
 reason to exist. Everywhere else the animated SVG is better on every axis.
 
-It is **transparent, not matted**, and that costs a hard edge: GIF alpha is one bit, so the
-ball's antialiased rim is thresholded at 50 % opacity and comes out as a staircase. That is
-the format, not a bug. The mitigation is to export at 320 px while an avatar displays at
-40–128 px — the browser's downscale smooths the steps back out. Matting against a colour
-would smooth the edge instead, but bake that colour in and fringe on any other background.
+**It is the only export that asks a question**, and only because GIF alpha is one bit: the
+ball's antialiased rim has to be thresholded at 50 %, which comes out as a staircase. A solid
+background smooths that rim back out because it has something to blend into — at the cost of
+baking the colour in. Neither choice wins everywhere, so a dialog offers both, white first
+(`GifDialog.vue`, native radios so the browser gives grouping and arrow keys). Exporting at
+320 px while an avatar displays at 40–128 px softens the transparent edge further, since the
+browser's downscale re-smooths it.
+
+**With a background, the eyes must take its exact colour.** They are holes filled with
+`paper`, so left at the site's off-white they show up as a slightly darker ring inside a white
+frame. `sequenceDuBot` therefore passes the matte through as `paper` — measured: eyes at
+`255,255,255` on a white background against `249,249,249` on a transparent one.
+
+`gifAnime` **deduces** transparency from the pixels rather than being told: flattened frames
+must not declare a transparent index, and above all must not be disposed to background between
+frames, which would flash the background. Transparent frames dispose to background (2),
+opaque ones stay in place (1). Both cases are locked by a test.
 
 Its LZW encoder is hand-rolled (no dependency), and it holds **the one trap of the format**:
 the encoder writes its dictionary entry right after emitting a code, while the decoder only
