@@ -1,139 +1,79 @@
 import { describe, expect, it } from 'vitest'
-import { litWebp, webpAnime } from './anime'
+import { svgAnime } from './anime'
 
-const ascii = (s: string) => Array.from(s, (c) => c.charCodeAt(0))
-const le = (v: number, n: number) => {
-  const out: number[] = []
-  for (let i = 0; i < n; i++) out.push((v / 2 ** (8 * i)) & 0xff)
-  return out
-}
-const chunk = (id: string, d: number[]) => {
-  const out = [...ascii(id), ...le(d.length, 4), ...d]
-  if (d.length % 2) out.push(0)
-  return out
-}
+/** SVG minimal ayant la structure de celui de BloubBot : corps + deux yeux. */
+const BASE =
+  '<svg xmlns="http://www.w3.org/2000/svg" viewBox="-125 -125 250 250">' +
+  '<defs><mask id="m" maskUnits="userSpaceOnUse">' +
+  '<path d="M61 0C62 2Z" fill="#fff"/>' +
+  '<path d="M-9 -11A9 9Z" fill="#000" transform="matrix(0.86,-0.32,0.45,0.84,14.85,-27.88)"/>' +
+  '<path d="M-9 -11A9 9Z" fill="#000" transform="matrix(0.62,-0.05,0.45,0.84,35.2,-29.43)"/>' +
+  '</mask></defs>' +
+  '<g opacity="1"><path d="M61 0C62 2Z" fill="#f9f9f9"/>' +
+  '<g mask="url(#m)"><rect x="-125" y="-125" width="250" height="250" fill="#0a0a0c"/></g></g>' +
+  '</svg>'
 
-/** Fabrique un WebP fixe plausible, comme celui que rend `canvas.toBlob`. */
-function faux(opts: { alpha?: boolean; icc?: boolean; sansPerte?: boolean } = {}) {
-  const corps = [
-    ...ascii('WEBP'),
-    ...chunk('VP8X', [0x10, 0, 0, 0, ...le(63, 3), ...le(63, 3)]),
-    ...(opts.icc ? chunk('ICCP', new Array(456).fill(7)) : []),
-    ...(opts.alpha ? chunk('ALPH', [1, 2, 3]) : []),
-    ...chunk(opts.sansPerte ? 'VP8L' : 'VP8 ', [9, 9, 9, 9])
-  ]
-  return new Uint8Array([...ascii('RIFF'), ...le(corps.length, 4), ...corps])
-}
+const MATRICES = [
+  ['matrix(1,0,0,1,0,0)', 'matrix(1,0,0,1,10,0)'],
+  ['matrix(1,0,0,0.35,0,0)', 'matrix(1,0,0,0.35,10,0)'],
+  ['matrix(1,0,0,1,2,0)', 'matrix(1,0,0,1,12,0)']
+]
 
-/** Relit un conteneur RIFF : renvoie les identifiants et tailles, dans l'ordre. */
-function chunks(f: Uint8Array) {
-  const lis4 = (o: number) => String.fromCharCode(...f.subarray(o, o + 4))
-  const out: { id: string; taille: number; debut: number }[] = []
-  let o = 12
-  while (o + 8 <= f.length) {
-    const taille = f[o + 4]! + f[o + 5]! * 256 + f[o + 6]! * 65536 + f[o + 7]! * 16777216
-    out.push({ id: lis4(o), taille, debut: o + 8 })
-    o += 8 + taille + (taille % 2)
-  }
-  return out
-}
+describe('svg anime', () => {
+  const sortie = svgAnime(BASE, MATRICES, 3)
 
-describe('lecture d un webp fixe', () => {
-  it('recupere le flux d image et le plan alpha', () => {
-    const m = litWebp(faux({ alpha: true }))
-    expect(String.fromCharCode(...m.image.slice(0, 4))).toBe('VP8 ')
-    expect(m.alpha).not.toBeNull()
-    expect(m.transparente).toBe(true)
+  it('remplace le transform de chaque oeil par une classe', () => {
+    expect(sortie).toContain('class="oeil0"')
+    expect(sortie).toContain('class="oeil1"')
+    // plus aucun transform en dur dans le masque
+    expect(sortie.match(/<mask[\s\S]*?<\/mask>/)![0]).not.toContain('transform="matrix')
   })
 
-  /* 456 octets de profil de couleur PAR IMAGE pour un aplat de deux teintes. */
-  it('jette l ICCP que le navigateur ajoute', () => {
-    const m = litWebp(faux({ alpha: true, icc: true }))
-    expect(m.image.length).toBeLessThan(64)
-    expect(m.alpha!.length).toBeLessThan(64)
+  it('laisse le corps intact', () => {
+    // la silhouette ne bouge pas assez pour etre animee : 1,17u sur un rayon de 100
+    expect(sortie).toContain('<path d="M61 0C62 2Z" fill="#fff"/>')
+    expect(sortie).toContain('fill="#0a0a0c"')
+    expect(sortie).toContain('mask="url(#m)"')
   })
 
-  /* Le sans-perte porte son alpha dans son propre flux, sans chunk separe. */
-  it('voit la transparence d un VP8L sans chunk ALPH', () => {
-    const m = litWebp(faux({ sansPerte: true }))
-    expect(m.alpha).toBeNull()
-    expect(m.transparente).toBe(true)
-  })
-
-  it('refuse ce qui n est pas un webp', () => {
-    expect(() => litWebp(new Uint8Array(32))).toThrow()
-    expect(() => litWebp(new Uint8Array(4))).toThrow()
-  })
-})
-
-describe('assemblage de l animation', () => {
-  const images = [faux({ alpha: true, icc: true }), faux({ alpha: true }), faux({ alpha: true })]
-
-  it('produit un RIFF WEBP dont la taille declaree est juste', () => {
-    const f = webpAnime(images, 64, 64, 50)
-    expect(String.fromCharCode(...f.subarray(0, 4))).toBe('RIFF')
-    expect(String.fromCharCode(...f.subarray(8, 12))).toBe('WEBP')
-    // la taille part APRES son propre champ, donc total - 8
-    const declaree = f[4]! + f[5]! * 256 + f[6]! * 65536 + f[7]! * 16777216
-    expect(declaree).toBe(f.length - 8)
-  })
-
-  it('pose VP8X puis ANIM puis une ANMF par image', () => {
-    const ids = chunks(webpAnime(images, 64, 64, 50)).map((c) => c.id)
-    expect(ids).toEqual(['VP8X', 'ANIM', 'ANMF', 'ANMF', 'ANMF'])
-  })
-
-  it('declare l animation ET l alpha dans le VP8X', () => {
-    const f = webpAnime(images, 64, 64, 50)
-    const vp8x = chunks(f).find((c) => c.id === 'VP8X')!
-    const drapeaux = f[vp8x.debut]!
-    expect(drapeaux & 0x02).toBe(0x02) // animation
-    expect(drapeaux & 0x10).toBe(0x10) // alpha
-  })
-
-  it('n annonce pas d alpha quand aucune image n en a', () => {
-    const f = webpAnime([faux(), faux()], 64, 64, 50)
-    const vp8x = chunks(f).find((c) => c.id === 'VP8X')!
-    expect(f[vp8x.debut]! & 0x10).toBe(0)
-  })
-
-  /* Les dimensions de la toile sont ecrites en « moins un ». */
-  it('ecrit la taille de la toile en moins-un', () => {
-    const f = webpAnime(images, 512, 300, 50)
-    const vp8x = chunks(f).find((c) => c.id === 'VP8X')!
-    const u24 = (o: number) => f[o]! + f[o + 1]! * 256 + f[o + 2]! * 65536
-    expect(u24(vp8x.debut + 4)).toBe(511)
-    expect(u24(vp8x.debut + 7)).toBe(299)
+  it('ecrit une regle de keyframes par oeil, aux bons pourcentages', () => {
+    expect(sortie).toContain('@keyframes oeil0{0%{transform:matrix(1,0,0,1,0,0)}')
+    expect(sortie).toContain('50%{transform:matrix(1,0,0,0.35,0,0)}')
+    expect(sortie).toContain('100%{transform:matrix(1,0,0,1,2,0)}')
+    expect(sortie).toContain('@keyframes oeil1{')
   })
 
   /*
-   * Sans « ne pas fondre », une image transparente se compose sur la precedente
-   * et la boule laisse une trainee fantome derriere elle.
+   * Sans ces deux proprietes une transformation CSS sur un element SVG tourne
+   * autour du centre de sa boite au lieu de l'origine du repere.
    */
-  it('marque chaque image en « ne pas fondre »', () => {
-    const f = webpAnime(images, 64, 64, 50)
-    for (const c of chunks(f).filter((c) => c.id === 'ANMF')) {
-      expect(f[c.debut + 15]! & 0x02).toBe(0x02)
-    }
+  it('cale le repere des transformations CSS sur le viewBox', () => {
+    expect(sortie).toContain('transform-box:view-box')
+    expect(sortie).toContain('transform-origin:0 0')
   })
 
-  it('reporte la duree demandee sur chaque image', () => {
-    const f = webpAnime(images, 64, 64, 80)
-    for (const c of chunks(f).filter((x) => x.id === 'ANMF')) {
-      const duree = f[c.debut + 12]! + f[c.debut + 13]! * 256 + f[c.debut + 14]! * 65536
-      expect(duree).toBe(80)
-    }
+  /* La derive n'est pas periodique : sans `alternate`, le raccord sauterait. */
+  it('reboucle en aller-retour pour ne pas montrer de raccord', () => {
+    expect(sortie).toContain('animation-direction:alternate')
+    expect(sortie).toContain('animation-iteration-count:infinite')
+    expect(sortie).toContain('animation-duration:3s')
   })
 
-  it('boucle sans fin', () => {
-    const f = webpAnime(images, 64, 64, 50)
-    const anim = chunks(f).find((c) => c.id === 'ANIM')!
-    expect(f[anim.debut + 4]! + f[anim.debut + 5]! * 256).toBe(0)
-    // fond transparent : rien ne se peint derriere la boule
-    expect([f[anim.debut], f[anim.debut + 1], f[anim.debut + 2], f[anim.debut + 3]]).toEqual([0, 0, 0, 0])
+  it('reste un SVG bien forme et autonome', () => {
+    expect(sortie.startsWith('<svg xmlns=')).toBe(true)
+    expect(sortie.endsWith('</svg>')).toBe(true)
+    expect(sortie.indexOf('<style>')).toBeLessThan(sortie.indexOf('</svg>'))
   })
 
-  it('refuse une animation vide', () => {
-    expect(() => webpAnime([], 64, 64, 50)).toThrow()
+  it('pese une fraction d une animation bitmap', () => {
+    // 3 images cles ici, mais l'ordre de grandeur est le point : quelques ko
+    expect(sortie.length).toBeLessThan(4000)
+  })
+
+  it('refuse ce qu il ne sait pas animer', () => {
+    expect(() => svgAnime(BASE, [MATRICES[0]!], 3)).toThrow()
+    expect(() => svgAnime('<svg></svg>', MATRICES, 3)).toThrow()
+    // autant de matrices par image cle que d'yeux dans le masque
+    expect(() => svgAnime(BASE, [['matrix(1,0,0,1,0,0)'], ['matrix(1,0,0,1,1,0)']], 3)).toThrow()
   })
 })

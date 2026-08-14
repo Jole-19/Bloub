@@ -48,7 +48,7 @@ export function viewBoxExport(demi = DEMI_CADRE) {
   return `${-demi} ${-demi} ${demi * 2} ${demi * 2}`
 }
 
-export type ActionId = 'png' | 'svg' | 'webp' | 'copie' | 'copieSvg'
+export type ActionId = 'png' | 'svg' | 'anime' | 'copie' | 'copieSvg'
 
 /** Ce qu'on fait de l'image une fois produite. */
 export type ModeExport = 'telecharge' | 'anime' | 'copieImage' | 'copieTexte'
@@ -58,41 +58,43 @@ export interface ActionExport {
   mode: ModeExport
   /** Cote de l'image en pixels. */
   taille: number
-  extension: 'png' | 'svg' | 'webp'
+  extension: 'png' | 'svg'
+  /**
+   * Ajoute au nom du fichier. L'animation est un SVG elle aussi : sans ce suffixe
+   * elle ecraserait l'export fixe dans le dossier de telechargement.
+   */
+  suffixe?: string
 }
 
 /**
- * Cadence de l'animation exportee. Le clignement dure 0,18 s (mesure, `BLINK_DUR`
- * dans face.ts) : en dessous de 20 images par seconde il ne reste plus assez
- * d'images pour qu'il se lise comme un clignement plutot que comme un saut.
+ * Images CLES par seconde — pas une cadence de lecture.
+ *
+ * L'animation exportee est un SVG : c'est le navigateur qui interpole entre les
+ * cles, donc le mouvement est lisse a la frequence de l'ecran quel qu'en soit le
+ * nombre. C'est toute la difference avec un feuilletage bitmap, ou une animation
+ * a 20 images par seconde saccade parce que le clignement ne dure que 0,18 s
+ * (`BLINK_DUR`, face.ts) et n'a donc que trois ou quatre images pour se jouer.
+ *
+ * 30 par seconde parce que ca ne coute presque rien — une cle, c'est une matrice
+ * de texte — et que ca suit fidelement la courbe du clignement, qui ferme vite et
+ * rouvre plus lentement.
  */
-export const ANIM_FPS = 20
+export const ANIM_CLES_PAR_SEC = 30
 
 /**
  * Duree capturee. Le premier clignement tombe a 1,4 s puis les suivants toutes
- * les 1,9 a 4,6 s (`BLINKS`, face.ts) : quatre secondes en contiennent donc
+ * les 1,9 a 4,6 s (`BLINKS`, face.ts) : trois secondes en contiennent donc
  * toujours au moins un. Plus court, on exporterait souvent une boule qui se
  * contente de deriver.
  *
- * Il n'y a PAS de boucle sans couture a viser : les periodes de la derive sont
- * volontairement premieres entre elles pour que le mouvement ne se repete jamais
- * a l'oeil (`liveliness`, face.ts). Le raccord se verra, c'est le prix de cette
- * decision-la — et il se voit d'autant moins que le regard derive lentement.
+ * La boucle, elle, est sans couture malgre une derive non periodique : l'animation
+ * est jouee en aller-retour (`animation-direction: alternate`), donc elle reboucle
+ * exactement sur elle-meme. Voir `svgAnime`.
  */
 export const ANIM_SECONDES = 3
 
-export const ANIM_IMAGES = ANIM_FPS * ANIM_SECONDES
-export const ANIM_PAS = 1 / ANIM_FPS
-
-/**
- * Cote de l'animation, bien plus petit que celui du PNG : le conteneur WebP anime
- * ne compresse RIEN entre les images (chacune est autonome), donc le poids est
- * strictement proportionnel au nombre d'images. Mesure a 384 px : 3,5 ko par
- * image, soit 290 ko pour quatre secondes — au-dela de ce qu'acceptent les
- * emojis animes de Discord (256 ko) ou de Slack (128 ko). A 320 px sur trois
- * secondes on reste dans une taille qui se partage.
- */
-export const ANIM_TAILLE = 320
+export const ANIM_IMAGES = ANIM_CLES_PAR_SEC * ANIM_SECONDES
+export const ANIM_PAS = 1 / ANIM_CLES_PAR_SEC
 
 /**
  * UNE seule taille de PNG, volontairement : proposer 1024 et 2048 obligeait
@@ -111,7 +113,7 @@ export const ANIM_TAILLE = 320
 export const ACTIONS: ActionExport[] = [
   { id: 'png', mode: 'telecharge', taille: 1024, extension: 'png' },
   { id: 'svg', mode: 'telecharge', taille: DEMI_CADRE * 2, extension: 'svg' },
-  { id: 'webp', mode: 'anime', taille: ANIM_TAILLE, extension: 'webp' },
+  { id: 'anime', mode: 'anime', taille: DEMI_CADRE * 2, extension: 'svg', suffixe: 'anime' },
   { id: 'copie', mode: 'copieImage', taille: 1024, extension: 'png' },
   { id: 'copieSvg', mode: 'copieTexte', taille: DEMI_CADRE * 2, extension: 'svg' }
 ]
@@ -151,9 +153,12 @@ export function nomFichier(
   forme: string,
   expression: string,
   couleur: string,
-  extension: string
+  extension: string,
+  suffixe = ''
 ) {
   const propre = (v: string) => v.toLowerCase().replace(/[^a-z0-9]+/g, '').slice(0, 24)
-  const morceaux = [propre(forme), propre(expression), propre(couleur)].filter(Boolean)
+  const morceaux = [propre(forme), propre(expression), propre(couleur), propre(suffixe)].filter(
+    Boolean
+  )
   return `bloub${morceaux.map((m) => `-${m}`).join('')}.${extension}`
 }

@@ -12,7 +12,7 @@
 
 import { createApp, h, nextTick, ref } from 'vue'
 import BloubBot from '@/components/BloubBot.vue'
-import { webpAnime } from './anime'
+import { svgAnime } from './anime'
 import { sansCommentaires, viewBoxExport } from './export'
 
 /**
@@ -151,12 +151,13 @@ export interface ReglagesBot {
  * Le meme composant sert donc a l'ecran et a l'export : une seule source de
  * dessin, aucune chance de derive.
  */
-export async function imagesDuBot(
+export async function sequenceDuBot<T>(
   reglages: ReglagesBot,
   taille: number,
   nombre: number,
-  pas: number
-): Promise<Uint8Array[]> {
+  pas: number,
+  lis: (svg: SVGSVGElement, index: number) => T | Promise<T>
+): Promise<T[]> {
   const hote = document.createElement('div')
   // hors du flux et hors de vue, mais RENDU : un `display:none` ne donnerait pas
   // de SVG a serialiser.
@@ -170,33 +171,49 @@ export async function imagesDuBot(
   app.mount(hote)
 
   try {
-    const images: Uint8Array[] = []
-    // Un seul canvas pour toute la sequence : en creer un par image laisse des
-    // dizaines de contextes au ramasse-miettes pendant l'export.
-    const canvas = document.createElement('canvas')
+    const out: T[] = []
     for (let i = 0; i < nombre; i++) {
       date.value = i * pas
       await nextTick()
       const svg = hote.querySelector('svg')
       if (!svg) throw new Error('bot hors ecran non rendu')
-      const blob = await versBitmap(svgAutonome(svg, taille), taille, 'image/webp', canvas)
-      images.push(new Uint8Array(await blob.arrayBuffer()))
+      out.push(await lis(svg, i))
     }
-    return images
+    return out
   } finally {
     app.unmount()
     hote.remove()
   }
 }
 
-/** Assemble l'animation du bot en un WebP anime. */
-export async function versWebpAnime(
+/**
+ * Les matrices des yeux d'une image, lues sur le masque.
+ *
+ * Les yeux sont les seules formes du masque a porter un `transform` — le corps
+ * n'en a pas — donc l'ordre du document suffit a les identifier.
+ */
+function matricesDesYeux(svg: SVGSVGElement) {
+  return [...svg.querySelectorAll('mask [transform]')].map((e) => e.getAttribute('transform')!)
+}
+
+/**
+ * Assemble l'animation du bot en un SVG anime.
+ *
+ * Le corps est celui de la premiere image et n'est pas anime : au repos la
+ * silhouette ne se deplace que de 1,17 unite sur un rayon de 100, soit environ un
+ * pixel et demi. Tout le mouvement est dans les yeux.
+ */
+export async function versSvgAnime(
   reglages: ReglagesBot,
   taille: number,
   nombre: number,
   pas: number
 ): Promise<Blob> {
-  const images = await imagesDuBot(reglages, taille, nombre, pas)
-  const fichier = webpAnime(images, taille, taille, Math.round(pas * 1000))
-  return new Blob([fichier], { type: 'image/webp' })
+  let base = ''
+  const matrices = await sequenceDuBot(reglages, taille, nombre, pas, (svg, i) => {
+    if (i === 0) base = svgAutonome(svg, taille)
+    return matricesDesYeux(svg)
+  })
+  const markup = svgAnime(base, matrices, +((nombre - 1) * pas).toFixed(3))
+  return new Blob([markup], { type: 'image/svg+xml' })
 }

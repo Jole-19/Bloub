@@ -58,7 +58,7 @@ export default {
     more: 'Autres formats',
     png: 'Télécharger le PNG',
     svg: 'Télécharger le SVG',
-    webp: "Télécharger l'animation",
+    anime: "Télécharger l'animation",
     copie: "Copier l'image",
     copieSvg: 'Copier le SVG',
     done: 'Exporté',

@@ -35,7 +35,7 @@ const en: typeof fr = {
     more: 'Other formats',
     png: 'Download PNG',
     svg: 'Download SVG',
-    webp: 'Download animation',
+    anime: 'Download animation',
     copie: 'Copy image',
     copieSvg: 'Copy SVG',
     done: 'Exported',

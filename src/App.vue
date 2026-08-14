@@ -8,7 +8,7 @@ import Settings from '@/components/Settings.vue'
 import SideRail, { type ViewId } from '@/components/SideRail.vue'
 import Timeline from '@/components/Timeline.vue'
 import { t } from '@/i18n'
-import { copie, copieTexte, svgAutonome, telecharge, versPng, versWebpAnime } from '@/ui/capture'
+import { copie, copieTexte, svgAutonome, telecharge, versPng, versSvgAnime } from '@/ui/capture'
 import {
   ACTION_BY_ID,
   ANIM_IMAGES,
@@ -497,13 +497,14 @@ async function exporte(id: ActionId) {
 
   clearTimeout(confirmation)
   etatExport.value = 'occupe'
-  const nom = () => nomFichier(shape.value, expression.value, color.value, action.extension)
+  const nom = () =>
+    nomFichier(shape.value, expression.value, color.value, action.extension, action.suffixe)
   try {
     if (action.mode === 'anime') {
       // L'animation ne part PAS du SVG affiche : elle est rejouee depuis le debut
-      // sur une instance hors ecran. Cf. `imagesDuBot`.
+      // sur une instance hors ecran. Cf. `sequenceDuBot`.
       const reglages = { shape: shape.value, color: color.value, expression: expression.value }
-      telecharge(await versWebpAnime(reglages, action.taille, ANIM_IMAGES, ANIM_PAS), nom())
+      telecharge(await versSvgAnime(reglages, action.taille, ANIM_IMAGES, ANIM_PAS), nom())
       etatExport.value = 'exporte'
     } else {
       const markup = svgAutonome(svg, action.taille)

@@ -40,7 +40,7 @@ const zh: typeof fr = {
     more: '其他格式',
     png: '下载 PNG',
     svg: '下载 SVG',
-    webp: '下载动图',
+    anime: '下载动图',
     copie: '复制图片',
     copieSvg: '复制 SVG',
     done: '已导出',
