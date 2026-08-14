@@ -131,6 +131,12 @@ const playing = ref(initial.playing && view.value === 'animations')
 // L'URL est partageable, donc elle suit l'etat ET la lecture. replace et pas
 // push : on ne veut pas un cran d'historique par etat.
 watch([state, playing], ([id, on]) => {
+  // L'URL decrit le LECTEUR. Hors de lui, l'etat affiche n'est qu'un decor de
+  // vue — l'orbite par laquelle s'ouvrent les reglages — et n'a rien a faire
+  // dans un lien partageable. L'y ecrire declenchait en plus un `hashchange`
+  // qui replacait la tete de lecture sur les index du montage de l'utilisateur,
+  // alors que la vue joue le sien : le lecteur restait coince sur l'orbite.
+  if (view.value !== 'animations') return
   location.replace(`#etat=${id}${on ? '' : '&stop'}`)
 })
 
@@ -143,6 +149,8 @@ window.addEventListener('hashchange', () => {
   if (!next.named) return
   const found = locate(next.state)
   if (!found) return
+  // un lien qui NOMME un etat vise le lecteur : on y va, meme depuis une autre vue
+  view.value = 'animations'
   activeId.value = found.id
   block.value = found.index
 })
@@ -163,23 +171,47 @@ let resumeBlock = block.value
  * ou la forme choisie se voit (`baseBody`).
  */
 const REST = [makeBlock('idle')]
-const played = computed(() => (view.value === 'animations' ? cycle.value.blocks : REST))
+
+/**
+ * Entree dans les reglages : le tourbillon, puis le repos.
+ *
+ * `swirl` porte le visage de repos, donc le suivi du curseur s'applique des la
+ * premiere image et les yeux tournent d'un tour complet pour venir se poser a
+ * gauche (voir `src/ui/gaze.ts`). Le bloc de repos qui suit reprend exactement la
+ * meme pose : la reprise ne se voit pas.
+ */
+const ENTREE = [makeBlock('swirl'), makeBlock('idle')]
+
+const played = computed(() => {
+  if (view.value === 'animations') return cycle.value.blocks
+  return view.value === 'reglages' ? ENTREE : REST
+})
 
 watch(view, (now, before) => {
-  if (now !== 'animations') {
-    // On ne memorise la position qu'en QUITTANT le lecteur : passer de la
-    // personnalisation aux reglages ne doit pas ecraser la position gardee par
-    // le zero qu'on vient d'y poser.
-    if (before === 'animations') {
-      resume = playing.value
-      resumeBlock = block.value
-    }
-    playing.value = false
-    block.value = 0
+  // On ne memorise la position qu'en QUITTANT le lecteur : passer de la
+  // personnalisation aux reglages ne doit pas ecraser la position gardee par le
+  // zero qu'on vient d'y poser.
+  if (before === 'animations') {
+    resume = playing.value
+    resumeBlock = block.value
+  }
+  if (now === 'animations') {
+    playing.value = resume
+    block.value = resumeBlock
     return
   }
-  playing.value = resume
-  block.value = resumeBlock
+  block.value = 0
+  // seuls les reglages jouent quelque chose hors du lecteur : leur orbite d'entree
+  playing.value = now === 'reglages'
+})
+
+/**
+ * L'orbite d'entree ne se joue qu'une fois : des que le lecteur atteint le bloc
+ * de repos, on coupe l'enchainement. Sans ca le montage bouclerait et la vue
+ * rejouerait son entree indefiniment.
+ */
+watch(block, (i) => {
+  if (view.value === 'reglages' && i > 0) playing.value = false
 })
 
 /* ------------------------------------------------------------------- skins */
@@ -193,6 +225,50 @@ const expression = ref(
 watch(shape, (v) => localStorage.setItem('grokbot:forme', v))
 watch(color, (v) => localStorage.setItem('grokbot:couleur', v))
 watch(expression, (v) => localStorage.setItem('grokbot:expression', v))
+
+/* ----------------------------------------------------------------- humeurs */
+
+/**
+ * Dans les reglages, le bot change d'humeur de temps a autre pendant que ses
+ * yeux suivent le curseur. C'est un vernis de page, PAS un reglage :
+ * l'expression choisie par l'utilisateur n'est ni remplacee ni ecrite dans le
+ * stockage, on se contente d'en jouer une autre le temps de la visite.
+ *
+ * Les humeurs retenues ont toutes un lacet propre modeste : le demi-tour de tete
+ * de la vue se calcule par rapport a lui (voir `GrokBot.vue`), et une expression
+ * qui regarde deja loin de cote laisserait moins de marge au suivi.
+ */
+const HUMEURS = ['curieux', 'confus', 'surpris', 'attentif', 'heureux', 'mefiant']
+
+/**
+ * Dans les reglages la boule redevient RONDE, quelle que soit la forme choisie.
+ * L'orbite d'entree se relache sur une sphere — c'est ce que la video montre — et
+ * une goutte ou un hexagone en sortie de morph ne se lisent pas comme une boule
+ * qui tourne. Le choix de l'utilisateur n'est pas touche, seulement ce qu'on
+ * affiche ici : il revient intact des qu'on quitte la vue.
+ */
+const forme = computed(() => (view.value === 'reglages' ? DEFAULT_SHAPE : shape.value))
+
+/** Duree d'une humeur. Assez longue pour qu'on la remarque sans qu'elle agite. */
+const HUMEUR_MS = 4200
+
+const humeur = ref<string | null>(null)
+let humeurTimer: ReturnType<typeof setInterval> | undefined
+
+watch(view, (v) => {
+  clearInterval(humeurTimer)
+  if (v !== 'reglages') {
+    // retour a l'expression de l'utilisateur, en morphant comme le reste
+    humeur.value = null
+    return
+  }
+  // on part de SON expression et on derive ensuite : le changement se remarque
+  let i = 0
+  humeurTimer = setInterval(() => {
+    humeur.value = HUMEURS[i % HUMEURS.length]!
+    i++
+  }, HUMEUR_MS)
+})
 
 const order = computed(() => SEQUENCE.map((id) => STATES.find((s) => s.id === id)!))
 
@@ -269,9 +345,14 @@ function onSeek(t: number) {
         change, sinon il n'y aurait rien a faire glisser — c'est la largeur de sa
         colonne qui l'escamote, pas un `v-if`.
       -->
+      <!-- Centre verticalement, contrairement au panneau de droite : celui-la est
+           une longue grille de vignettes qui part du haut, celui-ci tient en
+           quelques lignes et se lirait comme oublie en haut d'un grand vide. Puis
+           remonte d'un cran : centre au pixel, il tombe plus bas que le regard,
+           qui se porte au tiers superieur. -->
       <aside
         v-if="!preview"
-        class="panneau scene__gauche w-full lg:w-80 lg:shrink-0"
+        class="panneau scene__gauche w-full lg:w-80 lg:shrink-0 lg:self-center lg:-translate-y-12"
         :class="view === 'reglages' ? 'panneau--ouvert max-lg:order-2' : 'max-lg:hidden'"
       >
         <Settings />
@@ -293,12 +374,13 @@ function onSeek(t: number) {
              barre de montage lui prend assez de place pour qu'un carre de 460
              deborde et fasse defiler la page -->
         <div
-          class="flex aspect-square w-full items-center justify-center"
-          :class="
+          class="avatar flex aspect-square w-full items-center justify-center"
+          :class="[
             preview
               ? 'max-w-[min(560px,calc(100dvh_-_6rem))]'
-              : 'max-w-[min(460px,calc(100dvh_-_var(--timeline)_-_7rem))]'
-          "
+              : 'max-w-[min(460px,calc(100dvh_-_var(--timeline)_-_7rem))]',
+            view === 'reglages' && !preview && 'avatar--geant'
+          ]"
         >
           <GrokBot
             ref="bot"
@@ -309,9 +391,9 @@ function onSeek(t: number) {
             v-model:playing="playing"
             :cycle="played"
             :size="preview ? 560 : 440"
-            :shape="shape"
+            :shape="forme"
             :color="color"
-            :expression="expression"
+            :expression="humeur ?? expression"
             :follow="view === 'reglages'"
           />
         </div>

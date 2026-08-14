@@ -2,8 +2,9 @@
 import { computed, onBeforeUnmount, onMounted, ref, shallowRef, triggerRef, watch } from 'vue'
 import { NOTIF_BLUE } from '@/bot/decor'
 import { BotEngine, type BotFrame } from '@/bot/engine'
-import { clamp } from '@/bot/math'
+import { clamp, easings } from '@/bot/math'
 import { t } from '@/i18n'
+import { lookTarget, TURN_TIME } from '@/ui/gaze'
 import {
   DEFAULT_EXPRESSION,
   EXPRESSION_BY_ID
@@ -16,7 +17,7 @@ import {
   mixHex
 } from '@/bot/skins'
 import { defaultCycle, type Block } from '@/bot/cycles'
-import { type StateId } from '@/bot/states'
+import { STATE_BY_ID, type StateId } from '@/bot/states'
 
 const props = withDefaults(
   defineProps<{
@@ -137,15 +138,6 @@ defineExpose({ seek })
 
 /* ------------------------------------------------------- regard qui suit */
 
-/**
- * Amplitude du suivi, en degres d'orientation de tete. CHOISIE, pas relevee :
- * la video de reference ne montre aucun suivi de curseur. Assez ample pour se
- * distinguer de la derive au repos (±7deg de lacet, ±5,5 de tangage), assez
- * retenue pour qu'aucun oeil ne parte derriere le limbe de la sphere — au-dela
- * d'une trentaine de degres l'oeil exterieur commence a disparaitre.
- */
-const YAW_MAX = 20
-const PITCH_MAX = 13
 
 const svg = ref<SVGSVGElement | null>(null)
 
@@ -153,6 +145,8 @@ const svg = ref<SVGSVGElement | null>(null)
 let pointer: { x: number; y: number } | null = null
 /** true = une cible est posee sur le moteur, donc il y a de quoi relacher. */
 let aiming = false
+/** Date d'horloge a laquelle le demi-tour a commence. */
+let turnSince = 0
 
 function onPointerMove(event: PointerEvent) {
   // Le tactile n'a pas de curseur qui traine : un doigt leve laisserait le
@@ -167,29 +161,47 @@ function onPointerLeave() {
 
 function release() {
   if (!aiming) return
-  engine.setLook(null, clock)
+  // meme duree qu'a l'aller : la tete revient pendant que la boule redescend
+  engine.setLook(null, clock, TURN_TIME)
   aiming = false
 }
 
 /**
- * Vise le pointeur. Le rectangle est relu a chaque image plutot que memorise :
- * l'avatar glisse pendant la transition de vue, et un centre garde en cache
- * ferait viser a cote pendant tout le glissement.
+ * Vise le pointeur. Ne fait que la part DOM du travail — mesurer ou est la boule
+ * et ou est le curseur — la regle de regard elle-meme etant dans `@/ui/gaze`.
  *
- * La normalisation se fait sur la demi-fenetre, pas sur la taille de l'avatar :
- * le regard doit saturer quand le curseur atteint le bord de l'ecran, quelle
- * que soit la place que l'avatar occupe.
+ * Le rectangle est relu a chaque image plutot que memorise : l'avatar glisse et
+ * grandit pendant la transition de vue, un centre garde en cache ferait viser a
+ * cote pendant tout le mouvement. La normalisation se fait sur la demi-fenetre et
+ * non sur la taille de l'avatar : le regard doit saturer quand le curseur atteint
+ * le bord de l'ecran, quelle que soit la place que la boule occupe.
  */
 function aim() {
-  const box = svg.value?.getBoundingClientRect()
-  if (!box || !pointer) {
+  // Le regard ne se pilote que sur les etats a VISAGE DE REPOS. Ailleurs la pose
+  // du regard EST l'animation relevee — l'orbite, par laquelle s'ouvre la vue,
+  // fait deja filer les yeux autour de la sphere — et s'y superposer la
+  // brouillerait.
+  if (!STATE_BY_ID.get(state.value)?.baseFace) {
     release()
     return
   }
-  const nx = clamp((pointer.x - (box.left + box.width / 2)) / (window.innerWidth / 2), -1, 1)
-  const ny = clamp((pointer.y - (box.top + box.height / 2)) / (window.innerHeight / 2), -1, 1)
-  // tangage positif = regard vers le haut, alors que le y de l'ecran descend
-  engine.setLook({ yaw: nx * YAW_MAX, pitch: -ny * PITCH_MAX, mix: 1 }, clock)
+  const box = svg.value?.getBoundingClientRect()
+  if (!box) return
+  // le demi-tour part quand la main est prise, pas a l'entree dans la vue :
+  // l'orbite joue d'abord, les yeux tournent ensuite
+  if (!aiming) turnSince = clock
+  engine.setLook(
+    lookTarget({
+      nx: pointer
+        ? clamp((pointer.x - (box.left + box.width / 2)) / (window.innerWidth / 2), -1, 1)
+        : 0,
+      ny: pointer
+        ? clamp((pointer.y - (box.top + box.height / 2)) / (window.innerHeight / 2), -1, 1)
+        : 0,
+      tour: easings.easeOutQuint(clamp((clock - turnSince) / TURN_TIME))
+    }),
+    clock
+  )
   aiming = true
 }
 

@@ -84,9 +84,8 @@ export default {
   settings: {
     title: 'Réglages',
     language: 'Langue',
-    languageHint: 'Détectée depuis votre navigateur au premier passage.',
     about: 'À propos',
-    credits: 'Créé par {name}',
+    credits: 'Créé avec ❤️ par {name}',
     creditsAria: 'Jérémy sur X, dans un nouvel onglet',
     github: 'Voir le projet sur GitHub',
     githubAria: 'Le dépôt du projet sur GitHub, dans un nouvel onglet'
@@ -106,7 +105,8 @@ export default {
     play: 'Lecture',
     orbit: 'Orbite',
     burst: 'Éclatement',
-    comet: 'Comète'
+    comet: 'Comète',
+    swirl: 'Tourbillon'
   },
 
   shapes: {

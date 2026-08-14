@@ -1,6 +1,8 @@
 import { describe, expect, it } from 'vitest'
 import { BotEngine } from './engine'
 import { radiusAtAngle } from './shape'
+import { EXPRESSION_BY_ID } from './expressions'
+import { REST_GAZE } from './face'
 import { SHAPE_BY_ID } from './skins'
 import { SEQUENCE, STATES, type StateId } from './states'
 
@@ -184,9 +186,21 @@ describe('forme personnalisee', () => {
 })
 
 describe('etats', () => {
-  it('expose les 14 etats de la video, tous dans la sequence', () => {
-    expect(STATES).toHaveLength(14)
-    expect(new Set(SEQUENCE)).toEqual(new Set(STATES.map((s) => s.id)))
+  /**
+   * La sequence est le CATALOGUE : les 14 etats releves sur la video, ceux que
+   * la palette propose et que la planche montre. Tout etat hors sequence est une
+   * transition d'interface, choisie et non mesuree — il ne doit donc jamais
+   * apparaitre dans le catalogue, et le rester est precisement ce qu'on verifie.
+   */
+  it('garde les 14 etats de la video dans la sequence, et rien d autre', () => {
+    expect(SEQUENCE).toHaveLength(14)
+    expect(new Set(SEQUENCE).size).toBe(14)
+    for (const id of SEQUENCE) expect(STATES.some((s) => s.id === id), id).toBe(true)
+  })
+
+  it('tient les transitions d interface hors du catalogue', () => {
+    const horsSequence = STATES.filter((s) => !SEQUENCE.includes(s.id)).map((s) => s.id)
+    expect(horsSequence).toEqual(['swirl'])
   })
 
   it('montre le visage sur les etats a visage, le cache sur les autres', () => {
@@ -243,26 +257,61 @@ describe('regard qui suit le pointeur', () => {
     expect(vise.sample(1).eyes[0]!.matrix).toBe(nu.sample(1).eyes[0]!.matrix)
   })
 
-  it('porte le regard du cote de la cible', () => {
-    const centre = new BotEngine(100, 'idle')
+  it('porte le regard vers le lacet vise, en absolu', () => {
     const droite = new BotEngine(100, 'idle')
     const gauche = new BotEngine(100, 'idle')
-    droite.setLook({ yaw: 20, pitch: 0, mix: 1 }, 0)
-    gauche.setLook({ yaw: -20, pitch: 0, mix: 1 }, 0)
-    // apres le rattrapage, l oeil est franchement decale, et des deux cotes
+    droite.setLook({ yaw: 45, pitchOffset: 0, mix: 1, spin: 0 }, 0)
+    gauche.setLook({ yaw: -45, pitchOffset: 0, mix: 1, spin: 0 }, 0)
     const t = 1 + BotEngine.LOOK_MORPH
-    expect(oeilX(droite, t)).toBeGreaterThan(oeilX(centre, t) + 10)
-    expect(oeilX(gauche, t)).toBeLessThan(oeilX(centre, t) - 10)
+    expect(oeilX(droite, t)).toBeGreaterThan(oeilX(gauche, t) + 40)
+  })
+
+  it('remplace le lacet de la pose au lieu de s y ajouter', () => {
+    // C'est ce qui rend le changement d'expression fluide : l'appelant n'a pas a
+    // retrancher le lacet de l'expression, donc il n'a pas a en connaitre la
+    // valeur — qui, pendant un morph, n'est pas encore celle d'arrivee.
+    // Deux expressions qui ne different QUE par leur lacet : l'abscisse d'un oeil
+    // depend aussi du tangage et de l'ecart des yeux, donc les faire varier
+    // ensemble ne prouverait rien.
+    const modele = EXPRESSION_BY_ID.get('neutre')!
+    const gauchier = { ...modele, gaze: { ...modele.gaze, yaw: -30 } }
+    const droitier = { ...modele, gaze: { ...modele.gaze, yaw: 60 } }
+    const cercle = SHAPE_BY_ID.get('cercle')!.radii
+
+    const a = new BotEngine(100, 'idle', cercle, gauchier)
+    const b = new BotEngine(100, 'idle', cercle, droitier)
+    // sans cible, les deux regardent franchement ailleurs l'un de l'autre
+    expect(Math.abs(oeilX(a, 1) - oeilX(b, 1))).toBeGreaterThan(40)
+
+    a.setLook({ yaw: -26, pitchOffset: 0, mix: 1, spin: 0 }, 1)
+    b.setLook({ yaw: -26, pitchOffset: 0, mix: 1, spin: 0 }, 1)
+    // ...et le meme lacet vise les pose exactement au meme endroit
+    const t = 1 + BotEngine.LOOK_MORPH
+    expect(oeilX(a, t)).toBeCloseTo(oeilX(b, t), 5)
+  })
+
+  it('parcourt le tour demande sans changer le point d arrivee', () => {
+    const direct = new BotEngine(100, 'idle')
+    const tourne = new BotEngine(100, 'idle')
+    direct.setLook({ yaw: -26, pitchOffset: 0, mix: 1, spin: 0 }, 0)
+    tourne.setLook({ yaw: -26, pitchOffset: 0, mix: 1, spin: 360 }, 0)
+    const t = 1 + BotEngine.LOOK_MORPH
+    // un tour complet est le meme angle : l image doit etre identique au pixel
+    expect(tourne.sample(t).eyes[0]!.matrix).toBe(direct.sample(t).eyes[0]!.matrix)
+    // ...alors qu a mi-tour la face est a l oppose du spectateur
+    const mi = new BotEngine(100, 'idle')
+    mi.setLook({ yaw: -26, pitchOffset: 0, mix: 1, spin: 180 }, 0)
+    expect(mi.sample(t).eyes).toHaveLength(0)
   })
 
   it('garde les deux yeux visibles aux amplitudes extremes', () => {
     // au-dela, l oeil exterieur passe derriere le limbe de la sphere et le
     // moteur le retire : la butee de GrokBot.vue doit rester en dessous
-    for (const yaw of [-20, 0, 20]) {
-      for (const pitch of [-13, 0, 13]) {
+    for (const yaw of [-42, -26, -10]) {
+      for (const pitchOffset of [-13, 0, 13]) {
         const e = new BotEngine(100, 'idle')
-        e.setLook({ yaw, pitch, mix: 1 }, 0)
-        expect(e.sample(1).eyes, `yaw ${yaw} pitch ${pitch}`).toHaveLength(2)
+        e.setLook({ yaw, pitchOffset, mix: 1, spin: 0 }, 0)
+        expect(e.sample(1).eyes, `yaw ${yaw} pitch ${pitchOffset}`).toHaveLength(2)
       }
     }
   })
@@ -270,9 +319,9 @@ describe('regard qui suit le pointeur', () => {
   it('eteint la derive automatique quand le pointeur commande', () => {
     const libre = new BotEngine(100, 'idle')
     const tenu = new BotEngine(100, 'idle')
-    tenu.setLook({ yaw: 0, pitch: 0, mix: 1 }, 0)
+    tenu.setLook({ yaw: REST_GAZE.yaw, pitchOffset: 0, mix: 1, spin: 0 }, 0)
 
-    // Meme cible que le regard de repos (ecart nul) : ce qui reste de mouvement
+    // Meme cible que le regard de repos : ce qui reste de mouvement
     // n'est donc QUE la derive. Elle doit s'etre eteinte, a ceci pres que le
     // flottement du corps (±0,006 rayon, `float`) n'est pas concerne.
     expect(amplitude(tenu, 1, 8)).toBeLessThan(2)
@@ -282,7 +331,7 @@ describe('regard qui suit le pointeur', () => {
   it('revient au regard de l etat quand la cible est relachee', () => {
     const nu = new BotEngine(100, 'idle')
     const e = new BotEngine(100, 'idle')
-    e.setLook({ yaw: 20, pitch: -10, mix: 1 }, 0)
+    e.setLook({ yaw: -20, pitchOffset: -10, mix: 1, spin: 0 }, 0)
     e.sample(1)
     e.setLook(null, 1)
     // le retour est progressif, puis complet
@@ -293,7 +342,7 @@ describe('regard qui suit le pointeur', () => {
 
   it('reste une fonction pure du temps pendant le rattrapage', () => {
     const e = new BotEngine(100, 'idle')
-    e.setLook({ yaw: 18, pitch: -8, mix: 1 }, 1)
+    e.setLook({ yaw: -18, pitchOffset: -8, mix: 1, spin: 0 }, 1)
     const milieu = e.sample(1.1).eyes[0]!.matrix
     // relire une date passee doit redonner exactement la meme image
     e.sample(3)

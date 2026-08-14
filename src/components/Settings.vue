@@ -78,8 +78,6 @@ const credits = computed(() => {
       </button>
     </div>
 
-    <p class="mt-2 text-xs text-[var(--muted)]">{{ t('settings.languageHint') }}</p>
-
     <h2 class="mt-6 text-sm font-semibold">{{ t('settings.about') }}</h2>
 
     <!-- `rel="noreferrer"` en plus de `noopener` : rien a apprendre a la cible

@@ -162,6 +162,8 @@ export type StateId =
   | 'orbit'
   | 'burst'
   | 'comet'
+  /** transition d'interface, pas une animation du catalogue : hors `SEQUENCE` */
+  | 'swirl'
 
 export interface StateDef {
   id: StateId
@@ -489,6 +491,53 @@ export const STATES: StateDef[] = [
   },
 
   {
+    /**
+     * Entree dans la vue des reglages.
+     *
+     * SEUL etat qui n'est pas releve sur la video : il est CHOISI, comme la
+     * couleur `--ink`. Il emprunte le vocabulaire d'`orbit` — les memes anneaux,
+     * avec leurs parametres mesures — mais coupe court : 1 s au lieu de 3,4, la
+     * moitie des anneaux, et aucun triangle.
+     *
+     * Les deux drapeaux a `true` sont tout l'interet de cet etat :
+     *
+     * - `baseBody` laisse la forme choisie remplacer le corps, donc la vue peut
+     *   imposer le cercle et le galet ou la goutte y MORPHENT au lieu de sauter ;
+     * - `baseFace` fait porter le visage de repos, donc le suivi du curseur
+     *   s'applique des cette entree. Un etat qui aurait sa propre pose de regard
+     *   (comme `orbit`) rendrait la main a l'etat suivant en pleine course, et
+     *   les yeux sauteraient d'un coup a la reprise.
+     *
+     * Il n'est volontairement PAS dans `SEQUENCE` : ce n'est pas une animation du
+     * catalogue, c'est une transition d'interface.
+     */
+    id: 'swirl',
+    hint: 'Anneaux arc-en-ciel courts, entree de la vue des reglages',
+    // un peu plus que le tour du regard (`TURN_TIME`, 1,1 s) : les yeux doivent
+    // etre poses a gauche avant que les anneaux ne s'effacent
+    duration: 1.3,
+    minDuration: 1.3,
+    morph: 0.3,
+    baseFace: true,
+    baseBody: true,
+    // le morph de forme est masque par un clignement, comme partout ailleurs
+    blinkIn: true,
+    pose: (t) =>
+      base({
+        // trois anneaux sur les six d'`orbit` : la moitie du bouquet suffit a le
+        // reconnaitre, et c'est autant d'arcs en moins a rasteriser par image
+        arcs: RINGS.slice(0, 3).map((s, i) => ({
+          id: `sw${i}`,
+          seed: s,
+          t,
+          // ils entrent l'un apres l'autre puis s'effacent avant la fin du bloc,
+          // pour que la reprise au repos se fasse sur une image deja propre
+          opacity: clamp((t - i * 0.06) / 0.14) * clamp((1.22 - t) / 0.34)
+        }))
+      })
+  },
+
+  {
     id: 'burst',
     hint: 'Le corps se disperse en particules qui spiralent puis se recompose',
     duration: 2.6,
@@ -560,6 +609,7 @@ export const POSES: Record<StateId, number> = {
   hexagon: 0.8,
   play: 0.9,
   orbit: 1.2,
+  swirl: 0.5,
   burst: 0.45,
   comet: 1.15
 }

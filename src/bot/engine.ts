@@ -32,30 +32,45 @@ export interface BotFrame {
 }
 
 /**
- * Ou le bot porte son regard, en ECART sur l'orientation de tete de l'etat.
+ * Ou le bot porte son regard quand quelque chose d'exterieur le pilote — le
+ * pointeur de la souris, aujourd'hui.
  *
- * Un ecart et pas une orientation absolue : la pose de chaque etat, comme
- * l'expression choisie dans le personnalisateur, est relevee sur la video. La
- * remplacer ferait disparaitre le regard en coin du clin d'oeil ou les yeux
- * baisses de la tristesse des que le pointeur entrerait dans la page. Un ecart
- * se superpose : curseur au centre du bot, l'expression est intacte.
+ * Les deux axes n'ont PAS la meme semantique, et c'est voulu :
  *
- * `mix` dit a quel point le pointeur commande (0 = pas du tout). Il sert a
- * eteindre la derive automatique du regard pendant le suivi : les deux
- * additionnees, le bot aurait l'air de chercher le curseur sans le trouver.
+ * - `yaw` est une direction ABSOLUE, qui remplace celle de la pose a mesure que
+ *   `mix` monte. C'est le moteur qui fait ce melange, et pas l'appelant, parce
+ *   que lui seul connait le lacet de la pose A CET INSTANT : pendant un
+ *   changement d'expression, la pose morphe, et un appelant qui compenserait le
+ *   lacet de l'expression lirait sa valeur d'arrivee au lieu de sa valeur
+ *   courante. Les yeux sautaient a chaque humeur — piege deja tombe une fois.
+ * - `pitchOffset` est un ECART, ajoute a celui de la pose. Le tangage n'a pas
+ *   besoin d'etre neutralise, et le garder relatif preserve ce qui fait le
+ *   caractere de chaque expression : la fierte regarde en haut, la tristesse en
+ *   bas.
+ *
+ * `mix` dit a quel point l'exterieur commande (0 = pas du tout). Il sert aussi a
+ * eteindre la derive automatique du regard : les deux cumulees, le bot aurait
+ * l'air de chercher le curseur sans jamais le tenir.
+ *
+ * `spin` est un tour a parcourir EN CHEMIN, en degres, qu'on fait fondre vers 0
+ * avec l'arrivee. Comme les yeux vivent sur une sphere, un tour les fait passer
+ * derriere la boule et revenir de l'autre cote — et `-360deg` etant le meme
+ * angle que `0`, il ne change rien a l'endroit ou ils se posent.
  */
 export interface Look {
   yaw: number
-  pitch: number
+  pitchOffset: number
   mix: number
+  spin: number
 }
 
-const NO_LOOK: Look = { yaw: 0, pitch: 0, mix: 0 }
+const NO_LOOK: Look = { yaw: 0, pitchOffset: 0, mix: 0, spin: 0 }
 
 const lerpLook = (a: Look, b: Look, t: number): Look => ({
   yaw: lerp(a.yaw, b.yaw, t),
-  pitch: lerp(a.pitch, b.pitch, t),
-  mix: lerp(a.mix, b.mix, t)
+  pitchOffset: lerp(a.pitchOffset, b.pitchOffset, t),
+  mix: lerp(a.mix, b.mix, t),
+  spin: lerp(a.spin, b.spin, t)
 })
 
 const lerpEye = (a: Pose['eyes'][number], b: Pose['eyes'][number], t: number) => ({
@@ -120,6 +135,7 @@ export class BotEngine {
   private look: Look = NO_LOOK
   private lookPrev: Look = NO_LOOK
   private lookAt = -10
+  private lookMorph = 0.24
 
   /** duree du morph quand on change la forme du corps */
   static readonly SHAPE_MORPH = 0.45
@@ -210,15 +226,16 @@ export class BotEngine {
    * setter horodate, jamais par une variable lue pendant `sample`, sinon le
    * moteur cesse d'etre une fonction pure du temps.
    */
-  setLook(look: Look | null, now: number) {
+  setLook(look: Look | null, now: number, morph = BotEngine.LOOK_MORPH) {
     this.lookPrev = this.lookAtTime(now)
     this.look = look ?? NO_LOOK
     this.lookAt = now
+    this.lookMorph = morph
   }
 
   /** Regard effectif a l'instant `now`, rattrapage en cours compris. */
   private lookAtTime(now: number): Look {
-    const k = (now - this.lookAt) / BotEngine.LOOK_MORPH
+    const k = (now - this.lookAt) / this.lookMorph
     if (k >= 1) return this.look
     return lerpLook(this.lookPrev, this.look, easings.easeOutQuint(clamp(k)))
   }
@@ -286,10 +303,12 @@ export class BotEngine {
     const life = liveliness(now, { wander: alive ? 1 - look.mix : 0, blink: alive })
 
     const gaze = {
-      yaw: pose.gaze.yaw + life.dYaw + look.yaw,
-      // le roulis, lui, ne suit pas : la tete du bot est penchee de -13deg dans
+      // Le lacet vise REMPLACE celui de la pose au lieu de s'y ajouter (voir
+      // `Look`), et le tour se retranche en chemin.
+      yaw: lerp(pose.gaze.yaw + life.dYaw, look.yaw, look.mix) - look.spin,
+      pitch: pose.gaze.pitch + life.dPitch + look.pitchOffset,
+      // le roulis, lui, ne suit rien : la tete du bot est penchee de -13deg dans
       // la video, et la faire rouler avec le curseur casse cette signature
-      pitch: pose.gaze.pitch + life.dPitch + look.pitch,
       roll: pose.gaze.roll + life.dRoll
     }
 

@@ -75,9 +75,8 @@ const en: typeof fr = {
   settings: {
     title: 'Settings',
     language: 'Language',
-    languageHint: 'Detected from your browser on your first visit.',
     about: 'About',
-    credits: 'Made by {name}',
+    credits: 'Made with ❤️ by {name}',
     creditsAria: 'Jérémy on X, in a new tab',
     github: 'View the project on GitHub',
     githubAria: 'The project repository on GitHub, in a new tab'
@@ -97,7 +96,8 @@ const en: typeof fr = {
     play: 'Play',
     orbit: 'Orbit',
     burst: 'Burst',
-    comet: 'Comet'
+    comet: 'Comet',
+    swirl: 'Swirl'
   },
 
   shapes: {

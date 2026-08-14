@@ -79,9 +79,8 @@ const zh: typeof fr = {
   settings: {
     title: '设置',
     language: '语言',
-    languageHint: '首次访问时根据您的浏览器自动检测。',
     about: '关于',
-    credits: '由 {name} 创作',
+    credits: '由 {name} 用 ❤️ 打造',
     creditsAria: 'Jérémy 的 X 主页，在新标签页中打开',
     github: '在 GitHub 上查看项目',
     githubAria: '项目的 GitHub 仓库，在新标签页中打开'
@@ -101,7 +100,8 @@ const zh: typeof fr = {
     play: '播放',
     orbit: '轨道',
     burst: '爆散',
-    comet: '彗星'
+    comet: '彗星',
+    swirl: '漩涡'
   },
 
   shapes: {
