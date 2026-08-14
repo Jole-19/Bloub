@@ -8,11 +8,21 @@ import Settings from '@/components/Settings.vue'
 import SideRail, { type ViewId } from '@/components/SideRail.vue'
 import Timeline from '@/components/Timeline.vue'
 import { t } from '@/i18n'
-import { copie, copieTexte, svgAutonome, telecharge, versPng, versSvgAnime } from '@/ui/capture'
+import {
+  copie,
+  copieTexte,
+  svgAutonome,
+  telecharge,
+  versGifAnime,
+  versPng,
+  versSvgAnime
+} from '@/ui/capture'
 import {
   ACTION_BY_ID,
   ANIM_IMAGES,
   ANIM_PAS,
+  GIF_IMAGES,
+  GIF_PAS,
   nomFichier,
   type ActionId,
   type EtatExport
@@ -505,6 +515,10 @@ async function exporte(id: ActionId) {
       // sur une instance hors ecran. Cf. `sequenceDuBot`.
       const reglages = { shape: shape.value, color: color.value, expression: expression.value }
       telecharge(await versSvgAnime(reglages, action.taille, ANIM_IMAGES, ANIM_PAS), nom())
+      etatExport.value = 'exporte'
+    } else if (action.mode === 'gif') {
+      const reglages = { shape: shape.value, color: color.value, expression: expression.value }
+      telecharge(await versGifAnime(reglages, action.taille, GIF_IMAGES, GIF_PAS), nom())
       etatExport.value = 'exporte'
     } else {
       const markup = svgAutonome(svg, action.taille)

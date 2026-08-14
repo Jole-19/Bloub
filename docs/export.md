@@ -122,13 +122,34 @@ theirs to decide; whoever wants bigger takes the SVG, which has no size.
 GIF is ruled out **for the still export** by its 1-bit transparency: a staircase edge where
 PNG has 8 bits of alpha.
 
-An animated GIF is **not written**, on purpose: the animated SVG covers the same need with
-interpolated motion at a tenth of the weight. It would only earn its place for platform reach
-— Discord and Slack accept a GIF as an animated avatar, an SVG nowhere. If it is ever added it
-needs a hand-rolled LZW encoder; the palette side is easy, since the bot uses very few distinct
-colours (71.4 % transparent, 26.7 % body, 1.5 % `paper`, the rest antialiasing), so an exact
-palette fits without dithering. Its edge would be jagged — inherent to 1-bit alpha, not a bug
-to fix.
+## The animated GIF exists only for platform reach
+
+Discord and Slack accept a GIF as an animated avatar and an SVG nowhere, which is its whole
+reason to exist. Everywhere else the animated SVG is better on every axis.
+
+It is **transparent, not matted**, and that costs a hard edge: GIF alpha is one bit, so the
+ball's antialiased rim is thresholded at 50 % opacity and comes out as a staircase. That is
+the format, not a bug. The mitigation is to export at 320 px while an avatar displays at
+40–128 px — the browser's downscale smooths the steps back out. Matting against a colour
+would smooth the edge instead, but bake that colour in and fringe on any other background.
+
+Its LZW encoder is hand-rolled (no dependency), and it holds **the one trap of the format**:
+the encoder writes its dictionary entry right after emitting a code, while the decoder only
+writes its own when it reads the *next* code. The decoder is therefore permanently one entry
+behind, so the encoder must widen its codes one step late — `suivant > (1 << taille)`, never
+`===`. Getting that wrong desynchronises the two and every reader rejects the file, with
+nothing in the structure to show why. There is a round-trip test decoding the stream back to
+its exact pixels, because structural assertions cannot catch this.
+
+The palette is exact rather than dithered: the bot uses very few distinct colours (71.4 %
+transparent, 26.7 % body, 1.5 % `paper`, the rest antialiasing), so index 0 is reserved for
+transparency and the rest fit. Frames are disposed to background (`2 << 2`), the GIF
+equivalent of "do not blend" — without it the transparent areas keep the previous frame and
+the ball drags a trail. Delays are in **hundredths** of a second, which caps the useful rate,
+and never below 2 since 0 and 1 are handled inconsistently by readers.
+
+Measured on the output: 147 kB, 60 frames at 320², decoded back by Chrome with a transparent
+corner and 2033 pixels changing between frames.
 
 ## The SVG is copied as TEXT, the image as a blob
 

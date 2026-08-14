@@ -12,7 +12,7 @@
 
 import { createApp, h, nextTick, ref } from 'vue'
 import BloubBot from '@/components/BloubBot.vue'
-import { svgAnime } from './anime'
+import { gifAnime, svgAnime } from './anime'
 import { sansCommentaires, viewBoxExport } from './export'
 
 /**
@@ -34,22 +34,17 @@ export function svgAutonome(svg: SVGSVGElement, taille: number) {
 }
 
 /**
- * Rasterise un SVG en PNG.
+ * Rasterise un SVG dans un canvas et rend son contexte.
  *
  * Passe par un blob et non par une `data:` URL : `btoa` casse sur les accents de
  * l'`aria-label`, et l'encodage en pourcents d'un SVG entier est inutilement
- * long. L'URL est relachee dans un `finally` — un objet non revoque tient le
- * blob en memoire jusqu'au rechargement de la page.
+ * long. L'URL est relachee dans un `finally` — un objet non revoque tient le blob
+ * en memoire jusqu'au rechargement de la page.
  *
  * Le canvas n'est jamais souille : le SVG du bot n'a ni `<foreignObject>` ni
  * `<image>`, les deux seules choses qui feraient echouer `toBlob`.
  */
-export async function versBitmap(
-  markup: string,
-  taille: number,
-  type: 'image/png' | 'image/webp' = 'image/png',
-  canvas = document.createElement('canvas')
-): Promise<Blob> {
+async function dessine(markup: string, taille: number, canvas: HTMLCanvasElement) {
   const url = URL.createObjectURL(new Blob([markup], { type: 'image/svg+xml' }))
   try {
     const img = new Image()
@@ -66,22 +61,29 @@ export async function versBitmap(
     // effacement, une image aux yeux fermes garderait les yeux ouverts dessous.
     ctx.clearRect(0, 0, taille, taille)
     ctx.drawImage(img, 0, 0, taille, taille)
-
-    return await new Promise<Blob>((resolve, reject) => {
-      canvas.toBlob(
-        (blob) => (blob ? resolve(blob) : reject(new Error(`encodage ${type} impossible`))),
-        type,
-        // Qualite 1 = SANS PERTE en WebP, et c'est gratuit ici : mesure sur une
-        // image du bot, 4116 octets sans perte contre 4128 avec perte. L'aplat de
-        // deux teintes ne donne rien a gagner a un encodeur avec perte, qui en
-        // revanche salit le bord de la boule. Le flux sans perte porte en plus son
-        // alpha lui-meme, sans chunk `ALPH` separe.
-        1
-      )
-    })
+    return ctx
   } finally {
     URL.revokeObjectURL(url)
   }
+}
+
+export async function versBitmap(
+  markup: string,
+  taille: number,
+  type: 'image/png' | 'image/webp' = 'image/png',
+  canvas = document.createElement('canvas')
+): Promise<Blob> {
+  await dessine(markup, taille, canvas)
+  return await new Promise<Blob>((resolve, reject) => {
+    canvas.toBlob(
+      (blob) => (blob ? resolve(blob) : reject(new Error(`encodage ${type} impossible`))),
+      type,
+      // Qualite 1 = SANS PERTE, et c'est gratuit sur un aplat de deux teintes :
+      // mesure sur une image du bot, 4116 octets sans perte contre 4128 avec.
+      // Un encodeur avec perte n'a rien a y gagner, mais salit le bord de la boule.
+      1
+    )
+  })
 }
 
 /** Raccourci pour l'export fixe. */
@@ -216,4 +218,28 @@ export async function versSvgAnime(
   })
   const markup = svgAnime(base, matrices, +((nombre - 1) * pas).toFixed(3))
   return new Blob([markup], { type: 'image/svg+xml' })
+}
+
+/**
+ * Assemble l'animation du bot en GIF anime.
+ *
+ * Le GIF est un vrai feuilletage : il faut donc rasteriser chaque image, la ou le
+ * SVG anime ne collecte que des matrices. Il n'existe que pour les endroits qui
+ * refusent le SVG — un avatar anime Discord ou Slack — et son bord sera dur, sa
+ * transparence n'ayant qu'un bit.
+ */
+export async function versGifAnime(
+  reglages: ReglagesBot,
+  taille: number,
+  nombre: number,
+  pas: number
+): Promise<Blob> {
+  // Un seul canvas pour toute la sequence : en creer un par image laisse des
+  // dizaines de contextes au ramasse-miettes pendant l'export.
+  const canvas = document.createElement('canvas')
+  const images = await sequenceDuBot(reglages, taille, nombre, pas, async (svg) => {
+    const ctx = await dessine(svgAutonome(svg, taille), taille, canvas)
+    return ctx.getImageData(0, 0, taille, taille).data
+  })
+  return new Blob([gifAnime(images, taille, taille, Math.round(pas * 1000))], { type: 'image/gif' })
 }

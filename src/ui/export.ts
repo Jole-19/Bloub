@@ -48,17 +48,17 @@ export function viewBoxExport(demi = DEMI_CADRE) {
   return `${-demi} ${-demi} ${demi * 2} ${demi * 2}`
 }
 
-export type ActionId = 'png' | 'svg' | 'anime' | 'copie' | 'copieSvg'
+export type ActionId = 'png' | 'svg' | 'anime' | 'gif' | 'copie' | 'copieSvg'
 
 /** Ce qu'on fait de l'image une fois produite. */
-export type ModeExport = 'telecharge' | 'anime' | 'copieImage' | 'copieTexte'
+export type ModeExport = 'telecharge' | 'anime' | 'gif' | 'copieImage' | 'copieTexte'
 
 export interface ActionExport {
   id: ActionId
   mode: ModeExport
   /** Cote de l'image en pixels. */
   taille: number
-  extension: 'png' | 'svg'
+  extension: 'png' | 'svg' | 'gif'
   /**
    * Ajoute au nom du fichier. L'animation est un SVG elle aussi : sans ce suffixe
    * elle ecraserait l'export fixe dans le dossier de telechargement.
@@ -97,14 +97,34 @@ export const ANIM_IMAGES = ANIM_CLES_PAR_SEC * ANIM_SECONDES
 export const ANIM_PAS = 1 / ANIM_CLES_PAR_SEC
 
 /**
+ * Le GIF, lui, est un vrai feuilletage : sa cadence EST sa fluidite, et rien ne
+ * l'interpole. Vingt images par seconde est son plafond utile ici — son delai se
+ * compte en centiemes de seconde, donc 20 (5 centiemes) tombe juste la ou 30 ne
+ * tomberait pas, et chaque image ajoutee pese.
+ */
+export const GIF_FPS = 20
+export const GIF_IMAGES = GIF_FPS * ANIM_SECONDES
+export const GIF_PAS = 1 / GIF_FPS
+
+/**
+ * Le GIF est exporte PLUS GRAND que sa taille d'affichage, exprès. Sa
+ * transparence est sur un bit : le bord antialiase de la boule est tranche net et
+ * ressort en marches d'escalier. Un avatar Discord s'affiche entre 40 et 128 px,
+ * donc la reduction du navigateur relisse ce bord — ce que ne ferait pas un
+ * fichier exporte a la taille finale.
+ */
+export const GIF_TAILLE = 320
+
+/**
  * UNE seule taille de PNG, volontairement : proposer 1024 et 2048 obligeait
  * l'utilisateur a trancher une question qui n'est pas la sienne. 1024 couvre
  * toutes les specs de photo de profil (Discord 128, X 400, GitHub 500, Slack
  * 512) en se reduisant proprement, et un aplat vectoriel a cette taille ne pese
  * que quelques ko. Qui veut plus grand prend le SVG, qui n'a pas de taille.
  *
- * Pas de GIF : 256 couleurs et une transparence sur 1 bit, donc un bord en
- * escalier la ou le PNG a 8 bits d'alpha. Sur une boule, ca se voit.
+ * Pas de GIF FIXE : 256 couleurs et une transparence sur 1 bit, donc un bord en
+ * escalier la ou le PNG a 8 bits d'alpha. Le GIF n'existe ici qu'en ANIME, et
+ * seulement parce que les avatars animes de Discord ou de Slack refusent le SVG.
  *
  * Le catalogue ne porte que des **ids** : les libelles sont resolus par
  * `t('export.<id>')`, et l'union litterale au-dessus fait verifier a la
@@ -114,6 +134,7 @@ export const ACTIONS: ActionExport[] = [
   { id: 'png', mode: 'telecharge', taille: 1024, extension: 'png' },
   { id: 'svg', mode: 'telecharge', taille: DEMI_CADRE * 2, extension: 'svg' },
   { id: 'anime', mode: 'anime', taille: DEMI_CADRE * 2, extension: 'svg', suffixe: 'anime' },
+  { id: 'gif', mode: 'gif', taille: GIF_TAILLE, extension: 'gif' },
   { id: 'copie', mode: 'copieImage', taille: 1024, extension: 'png' },
   { id: 'copieSvg', mode: 'copieTexte', taille: DEMI_CADRE * 2, extension: 'svg' }
 ]
