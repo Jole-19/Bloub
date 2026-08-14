@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { computed, ref, watch } from 'vue'
+import BotTile from '@/components/BotTile.vue'
 import Customizer from '@/components/Customizer.vue'
 import GrokBot from '@/components/GrokBot.vue'
 import SideRail, { type ViewId } from '@/components/SideRail.vue'
@@ -134,6 +135,9 @@ const POSES: Record<StateId, number> = {
   </div>
 
   <template v-else>
+    <!-- titre de structure : la page n'affiche volontairement aucun titre, mais
+         un document sans h1 n'est pas navigable au lecteur d'ecran -->
+    <h1 class="sr-only">Grok bot</h1>
     <SideRail v-model="view" />
 
     <div class="flex min-h-full items-stretch justify-center gap-10 p-8 pl-24 max-lg:flex-col">
@@ -172,31 +176,32 @@ const POSES: Record<StateId, number> = {
         </div>
       </main>
 
-      <aside class="w-full lg:shrink-0" :class="view === 'animations' ? 'lg:w-64' : 'lg:w-80'">
+      <!-- largeur fixe, identique dans les deux vues : sinon la scene se decale
+           au changement d'onglet. w-80 est la contrainte du personnalisateur
+           (grille de 4 vignettes), le panneau d'animations s'y adapte. -->
+      <aside class="w-full lg:w-80 lg:shrink-0">
         <!-- panneau de declenchement manuel -->
         <template v-if="view === 'animations'">
-          <h1 class="text-sm font-semibold">Grok bot</h1>
-          <p class="mt-1 mb-3 text-xs leading-relaxed text-[var(--muted)]">
-            Le lecteur enchaîne la séquence ; chaque bouton déclenche un état à la main.
-            <a class="underline underline-offset-2" href="#planche">Voir la planche</a>
-          </p>
-          <div class="flex flex-col gap-0.5">
-            <button
+          <h2 class="text-sm font-semibold">Animation</h2>
+          <!--
+            Vignettes figees a la pose la plus lisible de chaque etat (POSES),
+            comme la planche : c'est la meme grille que le personnalisateur.
+            Le descriptif de l'etat s'affiche sous la scene, il n'a pas a
+            encombrer la liste ni a apparaitre en infobulle.
+          -->
+          <div class="mt-2 grid grid-cols-4 gap-1.5">
+            <BotTile
               v-for="s in order"
               :key="s.id"
-              type="button"
-              :title="s.hint"
-              class="cursor-pointer rounded border px-2.5 py-1.5 text-left text-xs transition"
-              :class="
-                s.id === state
-                  ? 'border-[var(--ink)] bg-[var(--ink)] text-[var(--paper)]'
-                  : 'border-[var(--line)] bg-white hover:border-[var(--ink)]'
-              "
+              :label="s.label"
+              :selected="s.id === state"
+              :state="s.id"
+              :shape="shape"
+              :color="color"
+              :expression="expression"
+              :frozen-at="POSES[s.id]"
               @click="state = s.id"
-            >
-              <span class="font-medium">{{ s.label }}</span>
-              <span class="block truncate text-[11px] opacity-55">{{ s.hint }}</span>
-            </button>
+            />
           </div>
         </template>
 

@@ -1,4 +1,6 @@
 <script setup lang="ts">
+import { ref } from 'vue'
+
 export type ViewId = 'animations' | 'personnaliser'
 
 const view = defineModel<ViewId>({ default: 'personnaliser' })
@@ -7,6 +9,15 @@ const ITEMS: Array<{ id: ViewId; label: string; hint: string }> = [
   { id: 'personnaliser', label: 'Personnaliser', hint: 'Forme, expression et couleur' },
   { id: 'animations', label: 'Animations', hint: 'Jouer et déclencher les états' }
 ]
+
+/**
+ * Icone dont l'infobulle est masquee jusqu'a ce que le pointeur reparte : une
+ * fois le clic fait la vue a change, l'infobulle n'a plus rien a annoncer et
+ * rester affichee sous le curseur donne l'impression qu'elle est coincee.
+ * `pointerdown` et pas `click` : au clavier (Entree) rien n'est masque, la
+ * l'infobulle est la seule indication de ce qu'on vient de choisir.
+ */
+const muted = ref<ViewId | null>(null)
 </script>
 
 <template>
@@ -15,10 +26,15 @@ const ITEMS: Array<{ id: ViewId; label: string; hint: string }> = [
     aria-label="Sections"
   >
     <ul class="flex flex-col gap-1">
-      <li v-for="item in ITEMS" :key="item.id" class="group relative">
+      <li
+        v-for="item in ITEMS"
+        :key="item.id"
+        class="group relative"
+        @pointerleave="muted = null"
+      >
         <button
           type="button"
-          class="flex h-10 w-10 cursor-pointer items-center justify-center rounded-xl transition"
+          class="peer flex h-10 w-10 cursor-pointer items-center justify-center rounded-xl transition"
           :class="
             view === item.id
               ? 'bg-[var(--ink)] text-[var(--paper)]'
@@ -26,6 +42,7 @@ const ITEMS: Array<{ id: ViewId; label: string; hint: string }> = [
           "
           :aria-label="item.label"
           :aria-current="view === item.id ? 'page' : undefined"
+          @pointerdown="muted = item.id"
           @click="view = item.id"
         >
           <!-- Animations : un triangle de lecture -->
@@ -55,10 +72,16 @@ const ITEMS: Array<{ id: ViewId; label: string; hint: string }> = [
 
         <!--
           Infobulle au survol ET au focus clavier : sinon la barre n'est
-          utilisable qu'a la souris.
+          utilisable qu'a la souris. `peer-focus-visible` et pas `focus-within` :
+          apres un clic souris le bouton garde le focus, et l'infobulle restait
+          affichee alors que le pointeur etait deja parti. Passer par `peer`
+          (frere du bouton) plutot que par `group-has-[:focus-visible]` : dans
+          `:has()`, Chromium ne reevalue pas `:focus-visible` et l'infobulle
+          restait collee a l'ecran.
         -->
         <span
-          class="pointer-events-none absolute top-1/2 left-full z-10 ml-2 -translate-y-1/2 translate-x-1 rounded-lg bg-[var(--ink)] px-2.5 py-1.5 text-xs whitespace-nowrap text-[var(--paper)] opacity-0 transition group-focus-within:translate-x-0 group-focus-within:opacity-100 group-hover:translate-x-0 group-hover:opacity-100"
+          class="pointer-events-none absolute top-1/2 left-full z-10 ml-2 -translate-y-1/2 translate-x-1 rounded-lg bg-[var(--ink)] px-2.5 py-1.5 text-xs whitespace-nowrap text-[var(--paper)] opacity-0 transition peer-focus-visible:translate-x-0 peer-focus-visible:opacity-100 group-hover:translate-x-0 group-hover:opacity-100"
+          :class="muted === item.id && 'translate-x-1! opacity-0!'"
           role="tooltip"
         >
           <span class="font-medium">{{ item.label }}</span>

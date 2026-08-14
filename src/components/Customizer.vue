@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import GrokBot from '@/components/GrokBot.vue'
+import BotTile from '@/components/BotTile.vue'
 import { EXPRESSIONS } from '@/bot/expressions'
 import { COLORS, SHAPES } from '@/bot/skins'
 
@@ -18,55 +18,32 @@ const PREVIEW_AT = 1
   <div>
     <h2 class="text-sm font-semibold">Forme</h2>
     <div class="mt-2 grid grid-cols-4 gap-1.5">
-      <button
+      <BotTile
         v-for="s in SHAPES"
         :key="s.id"
-        type="button"
-        class="flex cursor-pointer items-center justify-center rounded-xl border-2 p-1 transition"
-        :class="
-          s.id === shape ? 'border-[var(--ink)]' : 'border-transparent hover:border-[var(--line)]'
-        "
-        :aria-label="s.label"
-        :aria-pressed="s.id === shape"
+        :label="s.label"
+        :selected="s.id === shape"
+        :shape="s.id"
+        :color="color"
+        :expression="expression"
+        :frozen-at="PREVIEW_AT"
         @click="shape = s.id"
-      >
-        <GrokBot
-          state="idle"
-          :size="66"
-          :shape="s.id"
-          :color="color"
-          :expression="expression"
-          :frozen-at="PREVIEW_AT"
-        />
-      </button>
+      />
     </div>
 
     <h2 class="mt-5 text-sm font-semibold">Expression</h2>
     <div class="mt-2 grid grid-cols-4 gap-1.5">
-      <button
+      <BotTile
         v-for="e in EXPRESSIONS"
         :key="e.id"
-        type="button"
-        class="flex cursor-pointer flex-col items-center rounded-xl border-2 p-1 transition"
-        :class="
-          e.id === expression
-            ? 'border-[var(--ink)]'
-            : 'border-transparent hover:border-[var(--line)]'
-        "
-        :aria-label="e.label"
-        :aria-pressed="e.id === expression"
+        :label="e.label"
+        :selected="e.id === expression"
+        :shape="shape"
+        :color="color"
+        :expression="e.id"
+        :frozen-at="PREVIEW_AT"
         @click="expression = e.id"
-      >
-        <GrokBot
-          state="idle"
-          :size="60"
-          :shape="shape"
-          :color="color"
-          :expression="e.id"
-          :frozen-at="PREVIEW_AT"
-        />
-        <span class="text-[10px] leading-tight text-[var(--muted)]">{{ e.label }}</span>
-      </button>
+      />
     </div>
 
     <h2 class="mt-5 text-sm font-semibold">Couleur</h2>
