@@ -18,7 +18,7 @@
    * qui lui reserve sa place — dans les DEUX vues, sinon l'avatar centre change
    * de position en passant a la personnalisation.
    */
-  --timeline: 176px;
+  --timeline: 200px;
 }
 
 html,

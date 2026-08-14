@@ -55,6 +55,7 @@ withDefaults(
       :expression="expression"
       :frozen-at="frozenAt"
     />
-    <span class="text-[10px] leading-tight text-[var(--muted)]">{{ label }}</span>
+    <!-- 12 px : en dessous, une legende n'est plus lisible pour tout le monde -->
+    <span class="text-center text-xs leading-tight text-[var(--muted)]">{{ label }}</span>
   </button>
 </template>

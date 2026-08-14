@@ -60,6 +60,12 @@ const renaming = ref(false)
 const nameInput = ref<HTMLInputElement | null>(null)
 /** Debordement de la piste, pour n'afficher les degrades que s'ils servent. */
 const overflow = ref({ left: false, right: false })
+/**
+ * Defilement de la piste. L'infobulle de temps ne peut pas vivre dedans — le
+ * conteneur rogne ce qui depasse en hauteur, et elle flotte au-dessus de la
+ * regle — donc elle se positionne dehors, et doit retrancher ce defilement.
+ */
+const scrolled = ref(0)
 
 function width(index: number) {
   return blocks.value[index]!.duration * scale.value
@@ -105,9 +111,13 @@ function graduation(t: number) {
   return `${Number.isInteger(t) ? t : t.toFixed(1).replace('.', ',')}s`
 }
 
+/** Le compteur du haut arrondit a la seconde ; en deplacant, on veut le dixieme. */
+const exact = computed(() => `${at.value.toFixed(1).replace('.', ',')} s`)
+
 function onScroll() {
   const el = track.value
   if (!el) return
+  scrolled.value = el.scrollLeft
   overflow.value = {
     left: el.scrollLeft > 4,
     right: el.scrollLeft + el.clientWidth < el.scrollWidth - 4
@@ -448,7 +458,7 @@ watch(activeId, () => {
               d'une carte, le clic sur une carte ne fait que sauter a son debut.
             -->
             <div
-              class="relative h-4 shrink-0 cursor-ew-resize"
+              class="relative h-7 shrink-0 cursor-ew-resize pt-1"
               @pointerdown="onRulerDown"
               @pointermove="onRulerMove"
               @pointerup="scrubbing = false"
@@ -457,14 +467,17 @@ watch(activeId, () => {
               <span
                 v-for="tick in ticks"
                 :key="tick.t"
-                class="absolute top-0 flex items-start gap-0.5"
+                class="absolute bottom-1.5 flex items-end gap-1"
                 :style="{ transform: `translateX(${tick.t * scale}px)` }"
               >
                 <span
                   class="block w-px bg-[var(--line)]"
-                  :class="tick.major ? 'h-2.5' : 'h-1.5'"
+                  :class="tick.major ? 'h-3' : 'h-1.5'"
                 />
-                <span v-if="tick.major" class="text-[10px] leading-none text-[var(--muted)]">
+                <span
+                  v-if="tick.major"
+                  class="-mb-0.5 text-xs leading-none text-[var(--muted)]"
+                >
                   {{ graduation(tick.t) }}
                 </span>
               </span>
@@ -517,7 +530,7 @@ watch(activeId, () => {
                     />
                   </span>
                   <span
-                    class="flex items-baseline justify-between gap-1 text-[10px] leading-none tabular-nums"
+                    class="flex items-baseline justify-between gap-1 text-xs leading-none tabular-nums"
                     :class="i === block ? 'font-medium text-[var(--ink)]' : 'text-[var(--muted)]'"
                   >
                     <span>{{ i + 1 }}</span>
@@ -541,7 +554,7 @@ watch(activeId, () => {
                   <button
                     v-if="blocks.length > 1"
                     type="button"
-                    class="absolute top-1 right-2 flex h-4 w-4 cursor-pointer items-center justify-center rounded-full bg-black/10 text-[10px] leading-none text-[var(--ink)] opacity-0 transition group-hover:opacity-100 hover:bg-black/20 focus-visible:opacity-100"
+                    class="absolute top-1 right-2 flex h-5 w-5 cursor-pointer items-center justify-center rounded-full bg-black/10 text-xs leading-none text-[var(--ink)] opacity-0 transition group-hover:opacity-100 hover:bg-black/20 focus-visible:opacity-100"
                     :aria-label="`Retirer ${label(i)}`"
                     @click="removeBlock(i)"
                   >
@@ -599,6 +612,23 @@ watch(activeId, () => {
               />
             </div>
           </div>
+        </div>
+
+        <!--
+          Temps exact pendant le deplacement : au dixieme, la ou le compteur du
+          haut arrondit a la seconde. Elle flotte au-dessus de la regle, donc
+          hors du conteneur qui defile — d'ou le `scrolled` retranche.
+        -->
+        <div
+          v-if="scrubbing"
+          class="pointer-events-none absolute top-0 left-0 z-10"
+          :style="{ transform: `translate(${at * scale - scrolled}px, -70%)` }"
+        >
+          <span
+            class="block -translate-x-1/2 rounded-md bg-[var(--ink)] px-2 py-1 text-xs tabular-nums text-[var(--paper)] shadow-sm"
+          >
+            {{ exact }}
+          </span>
         </div>
 
         <!-- degrades de debordement : la piste continue par la -->
