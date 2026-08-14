@@ -30,6 +30,18 @@ const en: typeof fr = {
     color: 'Colour'
   },
 
+  export: {
+    action: 'Export as PNG',
+    more: 'Other formats',
+    png: 'Download PNG',
+    svg: 'Download SVG',
+    copie: 'Copy image',
+    copieSvg: 'Copy SVG',
+    done: 'Exported',
+    copied: 'Copied',
+    failed: 'Export failed'
+  },
+
   preview: {
     exit: 'Exit preview',
     key: 'Esc'

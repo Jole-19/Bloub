@@ -233,6 +233,39 @@ body,
     opacity 0.8s ease-out;
 }
 
+/*
+ * Arrivee de la barre d'export : elle monte en se revelant, APRES que l'avatar a
+ * pris sa place.
+ *
+ * C'est une TRANSITION et pas une animation, exactement comme `.panneau` — et
+ * c'est ce qui la fait se taire quand il le faut. Une transition ne joue pas sur
+ * le premier style calcule d'un element : au rechargement, ou en revenant de la
+ * vue Animations, la barre nait deja visible et rien ne bouge. Une animation,
+ * elle, rejouait a chaque montage, donc a chaque changement de vue.
+ *
+ * D'ou aussi le fait que la barre soit montee PENDANT l'arrivee, juste masquee :
+ * sans etat de depart present a l'ecran, il n'y aurait rien a interpoler.
+ *
+ * Le RETARD, lui, n'est pas ici mais dans `App.vue` : il n'est pas le meme selon
+ * ce qu'on attend. Apres l'arrivee, il laisse l'avatar rejoindre sa place ; en
+ * venant d'une autre vue, il laisse les colonnes finir de s'interpoler, ce qui est
+ * bien plus long. Une valeur unique en CSS rendait l'un ou l'autre faux.
+ *
+ * C'est `transform` et non `translate` qui porte la montee : le centrage
+ * horizontal occupe deja `translate`, et les deux proprietes se composent au lieu
+ * de s'ecraser.
+ */
+.barre-export {
+  transition:
+    opacity 0.6s ease-out,
+    transform 0.6s ease-out;
+}
+
+.barre-export--cachee {
+  opacity: 0;
+  transform: translateY(0.85rem);
+}
+
 @media (width >= 64rem) {
   /*
    * Sur grand ecran la mise en page est calee sur la fenetre : rien ne doit faire
@@ -357,6 +390,57 @@ body,
        qu'il est encore ecrase */
     transition: opacity 0.35s ease-out 0.2s;
   }
+
+  /*
+   * Barre d'export : calee sur le bas de la BOITE de l'avatar, pas sur le bas de
+   * la colonne.
+   *
+   * La boite est carree et centree dans la colonne, mais la silhouette n'occupe
+   * qu'environ 65 % de son cote — le viewBox du bot garde de quoi loger les
+   * anneaux des etats animes, qui n'existent pas au repos. Viser le bas de la
+   * colonne laissait donc 176 px de vide mesures entre la boule et le bouton, et
+   * la barre se lisait comme detachee de l'avatar.
+   *
+   * Le `min()` est exactement celui du `max-w` de `.avatar` : c'est la meme
+   * boite, donc la barre suit son retrecissement sur une fenetre basse au lieu de
+   * lui passer dessus.
+   *
+   * Rien n'est reserve ici : `--timeline` est deja soustrait de la hauteur de la
+   * colonne dans les deux vues, donc la bande du bas est libre et l'avatar ne
+   * bouge pas d'un pixel.
+   */
+  /*
+   * Calee comme la barre de MONTAGE, et pas dans la colonne de l'avatar.
+   *
+   * C'est ce qui lui evite de bouger. Ancree dans la colonne, elle suivait
+   * l'interpolation de la grille : en venant des reglages, le panneau de gauche se
+   * referme et le centre de la colonne se deplace de 320 px — la barre glissait
+   * donc jusqu'a sa place au lieu d'y etre. La barre de montage, elle, ne bouge
+   * jamais parce qu'elle est posee sur la FENETRE.
+   *
+   * `left`/`right` sont exactement les siens : la bande couvre la colonne de
+   * l'avatar (4,5rem = marge + gouttiere ; 24,5rem = panneau + gouttiere + marge)
+   * et centre son contenu. La vue Personnaliser n'a qu'une seule disposition de
+   * grille, donc cette position est constante.
+   */
+  .barre-export {
+    position: fixed;
+    left: 4.5rem;
+    right: 24.5rem;
+    display: flex;
+    justify-content: center;
+    /*
+     * Juste sous la boite de l'avatar : haut de la bande + demi-bande (le centre
+     * de la boite, qui y est centree) + demi-boite. Le `min()` est celui du
+     * `max-w` de `.avatar`, donc la barre suit son retrecissement sur une fenetre
+     * basse. Le demi-rem final la fait mordre dans la marge morte du bas de la
+     * boite, ou la silhouette ne va pas.
+     */
+    top: calc(
+      2rem + (100dvh - 3rem - var(--timeline)) / 2 +
+        min(460px, 100dvh - var(--timeline) - 7rem) / 2 - 0.5rem
+    );
+  }
 }
 
 /*
@@ -415,6 +499,10 @@ body,
   .panneau,
   .panneau--ouvert,
   .avatar {
+    transition: none;
+  }
+
+  .barre-export {
     transition: none;
   }
 }

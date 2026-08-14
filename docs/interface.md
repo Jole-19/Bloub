@@ -36,6 +36,22 @@ avatar stays centred 180 px too far left. Hence `.scene--seule`, which cancels b
 columns. The arrival and the preview both use it, so don't restrict it to one of
 them.
 
+**A zero-width column still contributes its `column-gap`.** Outside the settings the
+left track is `0`, but the gutter after it is not, so the avatar column starts at
+**4.5rem** (2rem of scene margin + 2.5rem of gutter), not at 2rem. That is why
+anything pinned to the window and meant to line up with the avatar — the montage bar,
+the export bar — uses `left: 4.5rem` as the counterpart of `right: 24.5rem`
+(20 + 2.5 + 2). Aiming at the scene's padding instead leaves it 20 px off centre,
+which is exactly enough to see under the ball.
+
+## The side rail floats and reserves nothing
+
+It is `fixed` and vertically centred on the window. The scene deliberately keeps **no**
+padding for it: reserving a column's worth of space pushed the avatar right, and the
+rail is supposed to sit over the page, not beside it. The only content that reaches far
+enough left to pass under it is the settings panel, so that panel carries its own
+`lg:pl-14` — don't move the clearance back onto the scene.
+
 ## The avatar's `transition` is outside the width query, its positions are inside
 
 Bringing them together looks tidier and breaks two things: the arrival's fade-in

@@ -76,6 +76,11 @@ Details and the reasoning behind each are in [docs/](docs/):
 - **One state isn't measured: `swirl`**, the settings view's entry transition. It's
   deliberately outside `SEQUENCE` (a test locks that) and carries both `baseBody`
   and `baseFace`.
+- **A UI element that must appear once uses a `transition`, not an `animation`.** An
+  animation replays on every mount — every view change, every reload. A transition
+  doesn't run on an element's first computed style, so it stays quiet there. That's
+  why `.panneau` and `.barre-export` are built that way, and why the latter is
+  mounted-but-hidden during the arrival rather than absent.
 - **`Look` aims in ABSOLUTE terms on both axes, and the engine does the mixing** —
   only it knows the pose at instant t. `mix` and `wander` are distinct, and drift is
   added *after* the mix. **`setLook` refuses a non-finite target**: the engine keeps
@@ -89,6 +94,7 @@ Details and the reasoning behind each are in [docs/](docs/):
 | [docs/measurements.md](docs/measurements.md) | What was measured, the traps, regenerating `profiles.ts` |
 | [docs/intro.md](docs/intro.md) | The arrival sequence, and why it plays only `idle` |
 | [docs/interface.md](docs/interface.md) | Three-column scene, CSS traps, icons |
+| [docs/export.md](docs/export.md) | The export bar, SVG/PNG capture, why no GIF |
 | [docs/i18n.md](docs/i18n.md) | The hand-rolled translation layer |
 
 The README is for people arriving at the repository — what the project is, how to

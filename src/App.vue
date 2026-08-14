@@ -3,10 +3,13 @@ import { computed, ref, watch } from 'vue'
 import BotTile from '@/components/BotTile.vue'
 import Customizer from '@/components/Customizer.vue'
 import BloubBot from '@/components/BloubBot.vue'
+import ExportBar from '@/components/ExportBar.vue'
 import Settings from '@/components/Settings.vue'
 import SideRail, { type ViewId } from '@/components/SideRail.vue'
 import Timeline from '@/components/Timeline.vue'
 import { t } from '@/i18n'
+import { copie, copieTexte, svgAutonome, telecharge, versPng } from '@/ui/capture'
+import { ACTION_BY_ID, nomFichier, type ActionId, type EtatExport } from '@/ui/export'
 import { HUMEURS } from '@/ui/gaze'
 import { INTRO, INTRO_GAZE, POSE_AT, introDue } from '@/ui/intro'
 import { cle } from '@/ui/stockage'
@@ -435,6 +438,84 @@ function onSeek(t: number) {
   bot.value?.seek(index, offset)
 }
 
+/* ------------------------------------------------------------------ export */
+
+/**
+ * Retard avant que la barre d'export se revele apres l'arrivee sur le site : le
+ * temps que l'avatar rejoigne sa place.
+ *
+ * C'est le SEUL moment ou elle s'anime. Un changement de vue ne la fait pas
+ * paraitre : elle est posee sur la fenetre comme la barre de montage (cf.
+ * `.barre-export` dans styles.css), donc elle nait deja a sa place — et un
+ * element qui ne se deplace pas n'a pas a s'annoncer.
+ */
+const RETARD_ARRIVEE = 400
+
+/**
+ * Barre masquee le temps que la scene se cale. A l'initialisation elle est
+ * VISIBLE : au rechargement, ou en arrivant directement ici, rien ne doit bouger
+ * — c'est la meme regle que pour les panneaux.
+ */
+const barreCachee = ref(false)
+let minuteurBarre: ReturnType<typeof setTimeout> | undefined
+
+/* Fin de l'arrivee : la boule n'est plus seule en scene. */
+watch(nue, (encore, avant) => {
+  if (!avant || encore) return
+  barreCachee.value = true
+  clearTimeout(minuteurBarre)
+  minuteurBarre = setTimeout(() => (barreCachee.value = false), RETARD_ARRIVEE)
+})
+
+/** Duree d'affichage de la confirmation d'export. */
+const CONFIRMATION_MS = 1800
+
+const etatExport = ref<EtatExport>('pret')
+let confirmation: ReturnType<typeof setTimeout> | undefined
+
+/**
+ * Exporte l'avatar tel qu'il est AFFICHE : `ExportBar` ne fait que demander un
+ * format, le SVG a capturer est ici, comme le montage et les skins.
+ *
+ * Ce que l'utilisateur voit est bien ce qu'il obtient, au cadrage pres — c'est
+ * le noeud vivant qui est serialise, pas un second rendu monte a cote.
+ */
+async function exporte(id: ActionId) {
+  // Garde SYNCHRONE, en plus du `disabled` du bouton : celui-ci n'existe qu'apres
+  // un rendu, donc deux clics dans la meme image telechargeaient deux fois.
+  if (etatExport.value === 'occupe') return
+  const action = ACTION_BY_ID.get(id)
+  const svg = bot.value?.$el as SVGSVGElement | null | undefined
+  if (!action || !svg) return
+
+  clearTimeout(confirmation)
+  etatExport.value = 'occupe'
+  try {
+    const markup = svgAutonome(svg, action.taille)
+    if (action.mode === 'copieImage') {
+      // Le blob part en PROMESSE et non attendu ici : cf. `copie` dans capture.ts.
+      await copie(versPng(markup, action.taille))
+      etatExport.value = 'copie'
+    } else if (action.mode === 'copieTexte') {
+      await copieTexte(markup)
+      etatExport.value = 'copie'
+    } else {
+      const nom = nomFichier(shape.value, expression.value, color.value, action.extension)
+      const fichier =
+        action.extension === 'svg'
+          ? new Blob([markup], { type: 'image/svg+xml' })
+          : await versPng(markup, action.taille)
+      telecharge(fichier, nom)
+      etatExport.value = 'exporte'
+    }
+  } catch {
+    // Un refus du presse-papiers ou un encodage impossible ne doit pas laisser
+    // la barre bloquee sur « occupe ».
+    etatExport.value = 'erreur'
+  }
+  confirmation = setTimeout(() => (etatExport.value = 'pret'), CONFIRMATION_MS)
+}
+
 /**
  * Rejoue l'entree a CHAQUE arrivee dans les reglages.
  *
@@ -510,7 +591,6 @@ watch(
     <div
       class="scene min-h-full items-stretch justify-center p-8 max-lg:flex max-lg:flex-col max-lg:gap-10"
       :class="[
-        preview ? '' : 'pl-24',
         !preview && view === 'animations' && 'pb-[calc(var(--timeline)_+_1rem)]',
         nue || preview ? 'scene--seule' : view === 'reglages' && 'scene--gauche'
       ]"
@@ -531,9 +611,13 @@ watch(
            non sur la colonne : cette vue n'a pas de barre de montage, donc la
            colonne va jusqu'en bas de la fenetre et un centrage dessus ferait
            descendre le panneau d'une centaine de pixels selon l'onglet. -->
+      <!-- `lg:pl-14` : le rail flotte au-dessus de la scene, qui ne lui reserve
+           plus de place — sinon il decalerait l'avatar vers la droite. Ce panneau
+           est le seul contenu qui arrive assez a gauche pour passer dessous, donc
+           c'est LUI qui s'ecarte, et pas la scene entiere. -->
       <aside
         v-if="!preview"
-        class="panneau scene__gauche w-full lg:flex lg:h-[calc(100dvh_-_3rem_-_var(--timeline))] lg:w-80 lg:shrink-0 lg:flex-col lg:justify-center lg:self-start lg:-translate-y-12"
+        class="panneau scene__gauche w-full lg:flex lg:h-[calc(100dvh_-_3rem_-_var(--timeline))] lg:w-80 lg:shrink-0 lg:flex-col lg:justify-center lg:self-start lg:-translate-y-12 lg:pl-14"
         :class="gauche ? 'panneau--ouvert max-lg:order-2' : 'max-lg:hidden'"
       >
         <Settings />
@@ -544,7 +628,7 @@ watch(
            haut que la grille d'animations, et l'avatar centre changeait de
            place d'un onglet a l'autre. -->
       <main
-        class="scene__avatar flex flex-1 items-center justify-center max-lg:order-1 lg:self-start"
+        class="scene__avatar relative flex flex-1 items-center justify-center max-lg:order-1 max-lg:flex-col max-lg:gap-4 lg:self-start"
         :class="
           preview
             ? 'lg:min-h-[calc(100dvh_-_4rem)]'
@@ -579,6 +663,39 @@ watch(
             :follow="view === 'reglages'"
             :gaze="intro ? INTRO_GAZE : null"
           />
+        </div>
+
+        <!--
+          La barre d'export ne decale PAS l'avatar : elle est hors du flux, et
+          `--timeline` est deja soustrait de la hauteur de cette colonne dans les
+          DEUX vues (sinon l'avatar centre changerait de place en passant a la
+          personnalisation), donc la bande sous la boule est deja libre ici. Rien
+          de neuf a reserver, aucune variable a ajouter.
+
+          Ancree sur cette colonne et non en `fixed` comme la barre de montage :
+          celle-ci traverse l'ecran, alors qu'un bouton centre doit suivre le
+          glissement de l'avatar quand la largeur des panneaux s'interpole.
+
+          Le calage fin est dans `styles.css` (`.barre-export`), qui a besoin du
+          `min()` de la boite de l'avatar. En dessous de 64rem la regle ne
+          s'applique pas : la scene s'empile, rien n'est reserve, et la barre
+          repasse dans le flux — sinon elle recouvrirait le personnalisateur.
+        -->
+        <!--
+          Montee pendant l'arrivee mais MASQUEE (`nue`), et pas retiree : c'est
+          l'etat de depart de sa transition, et sans lui a l'ecran il n'y aurait
+          rien a interpoler quand elle se revele. Meme montage que `.panneau`.
+
+          `inert` avec le masque : un element a `opacity: 0` reste cliquable et
+          atteignable au clavier.
+        -->
+        <div
+          v-if="view === 'personnaliser' && !preview"
+          class="barre-export"
+          :class="(nue || barreCachee) && 'barre-export--cachee'"
+          :inert="nue || barreCachee"
+        >
+          <ExportBar :etat="etatExport" @exporter="exporte" />
         </div>
       </main>
 

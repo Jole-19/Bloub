@@ -47,6 +47,24 @@ export default {
     color: 'Couleur'
   },
 
+  /**
+   * Barre d'export de la vue Personnaliser. Les libelles du menu sont des
+   * ACTIONS et pas des noms de format : « Télécharger le PNG » se comprend sans
+   * savoir ce qu'est un PNG, « PNG · 1024 px » demande de trancher une question
+   * qui n'est pas celle de l'utilisateur.
+   */
+  export: {
+    action: 'Exporter en PNG',
+    more: 'Autres formats',
+    png: 'Télécharger le PNG',
+    svg: 'Télécharger le SVG',
+    copie: "Copier l'image",
+    copieSvg: 'Copier le SVG',
+    done: 'Exporté',
+    copied: 'Copié',
+    failed: "Échec de l'export"
+  },
+
   preview: {
     exit: "Quitter l'aperçu",
     /** Nom de la touche tel qu'il est grave sur le clavier de la langue. */

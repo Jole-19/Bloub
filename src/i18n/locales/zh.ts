@@ -35,6 +35,18 @@ const zh: typeof fr = {
     color: '颜色'
   },
 
+  export: {
+    action: '导出 PNG',
+    more: '其他格式',
+    png: '下载 PNG',
+    svg: '下载 SVG',
+    copie: '复制图片',
+    copieSvg: '复制 SVG',
+    done: '已导出',
+    copied: '已复制',
+    failed: '导出失败'
+  },
+
   preview: {
     exit: '退出预览',
     key: 'Esc'

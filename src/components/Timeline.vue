@@ -135,9 +135,19 @@ function onRemove() {
     La scene lui reserve sa hauteur (`--timeline`) dans cette vue, et la bande de
     l'avatar la reserve partout ailleurs — sinon l'avatar centre sauterait d'un
     onglet a l'autre.
+
+    `lg:left-[4.5rem]` repond a `lg:right-[24.5rem]` : la bande couvre EXACTEMENT
+    la colonne de l'avatar, donc le bouton de lecture tombe pile sous la boule.
+    Sans lui la bande partait du bord de la fenetre et son centre etait 20 px a
+    cote.
+
+    4,5rem = la marge de la scene (2rem) + la gouttiere de la grille (2,5rem) : la
+    colonne de gauche a une largeur NULLE en dehors des reglages, mais la grille
+    garde son `column-gap`, donc la colonne de l'avatar commence a 72 px et non a
+    32. C'est la symetrie de 24,5rem = panneau (20) + gouttiere (2,5) + marge (2).
   -->
   <div
-    class="fixed inset-x-0 bottom-0 z-30 h-[var(--timeline)] px-6 pt-3 pb-5 lg:right-[24.5rem]"
+    class="fixed inset-x-0 bottom-0 z-30 h-[var(--timeline)] px-6 pt-3 pb-5 lg:right-[24.5rem] lg:left-[4.5rem]"
   >
     <!-- lecture : flottante au-dessus de la piste, au centre, le temps ecoule a
          gauche et la duree totale a droite -->
