@@ -132,8 +132,9 @@ function onRemove() {
     Barre de montage : fixee en bas, sans fond ni cadre — elle doit se lire
     comme une partie de la page, au meme titre que le panneau de droite, dont
     elle s'arrete avant la colonne (largeur du panneau + gouttiere + marge).
-    La scene lui reserve sa hauteur (`--timeline`) dans les DEUX vues, sinon
-    l'avatar centre sauterait d'un onglet a l'autre.
+    La scene lui reserve sa hauteur (`--timeline`) dans cette vue, et la bande de
+    l'avatar la reserve partout ailleurs — sinon l'avatar centre sauterait d'un
+    onglet a l'autre.
   -->
   <div
     class="fixed inset-x-0 bottom-0 z-30 h-[var(--timeline)] px-6 pt-3 pb-5 lg:right-[24.5rem]"

@@ -118,7 +118,6 @@ export interface BotColor {
 /** Palette du personnalisateur d'origine. */
 export const COLORS: BotColor[] = [
   { id: 'encre', hex: '#0a0a0c' },
-  { id: 'creme', hex: '#f1efe9' },
   { id: 'brun', hex: '#8b5e3c' },
   { id: 'rouge', hex: '#e8483f' },
   { id: 'orange', hex: '#f08a24' },
@@ -128,7 +127,8 @@ export const COLORS: BotColor[] = [
   { id: 'bleu', hex: '#3b93f0' },
   { id: 'violet', hex: '#8b5cf6' },
   { id: 'rose', hex: '#e152b0' },
-  { id: 'gris', hex: '#a3a3a3' }
+  { id: 'gris', hex: '#a3a3a3' },
+  { id: 'creme', hex: '#f1efe9' }
 ]
 
 export const COLOR_BY_ID = new Map<string, BotColor>(COLORS.map((c) => [c.id, c]))
