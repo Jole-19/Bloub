@@ -2,6 +2,7 @@
 import BotTile from '@/components/BotTile.vue'
 import { EXPRESSIONS } from '@/bot/expressions'
 import { COLORS, SHAPES } from '@/bot/skins'
+import { t } from '@/i18n'
 
 const shape = defineModel<string>('shape', { required: true })
 const color = defineModel<string>('color', { required: true })
@@ -16,12 +17,12 @@ const PREVIEW_AT = 1
 
 <template>
   <div>
-    <h2 class="text-sm font-semibold">Forme</h2>
+    <h2 class="text-sm font-semibold">{{ t('panel.shape') }}</h2>
     <div class="mt-2 grid grid-cols-4 gap-1.5">
       <BotTile
         v-for="s in SHAPES"
         :key="s.id"
-        :label="s.label"
+        :label="t(`shapes.${s.id}`)"
         :selected="s.id === shape"
         :shape="s.id"
         :color="color"
@@ -31,12 +32,12 @@ const PREVIEW_AT = 1
       />
     </div>
 
-    <h2 class="mt-5 text-sm font-semibold">Expression</h2>
+    <h2 class="mt-5 text-sm font-semibold">{{ t('panel.expression') }}</h2>
     <div class="mt-2 grid grid-cols-4 gap-1.5">
       <BotTile
         v-for="e in EXPRESSIONS"
         :key="e.id"
-        :label="e.label"
+        :label="t(`expressions.${e.id}`)"
         :selected="e.id === expression"
         :shape="shape"
         :color="color"
@@ -46,7 +47,7 @@ const PREVIEW_AT = 1
       />
     </div>
 
-    <h2 class="mt-5 text-sm font-semibold">Couleur</h2>
+    <h2 class="mt-5 text-sm font-semibold">{{ t('panel.color') }}</h2>
     <div class="mt-2 grid grid-cols-6 gap-1.5">
       <button
         v-for="c in COLORS"
@@ -56,7 +57,7 @@ const PREVIEW_AT = 1
         :class="
           c.id === color ? 'border-[var(--ink)]' : 'border-transparent hover:border-[var(--line)]'
         "
-        :aria-label="c.label"
+        :aria-label="t(`colors.${c.id}`)"
         :aria-pressed="c.id === color"
         @click="color = c.id"
       >

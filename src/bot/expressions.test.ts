@@ -25,17 +25,6 @@ describe('catalogue des expressions', () => {
     expect(EXPRESSION_BY_ID.size).toBe(16)
   })
 
-  it('porte des libelles accentues, pas leur identifiant brut', () => {
-    // les libelles sont affiches a l'ecran : ils doivent etre du vrai francais
-    for (const e of EXPRESSIONS) {
-      expect(e.label[0]).toBe(e.label[0]!.toUpperCase())
-      expect(e.label).not.toBe(e.id)
-    }
-    expect(EXPRESSION_BY_ID.get('colere')!.label).toBe('En colère')
-    expect(EXPRESSION_BY_ID.get('excite')!.label).toBe('Excité')
-    expect(EXPRESSION_BY_ID.get('effraye')!.label).toBe('Effrayé')
-  })
-
   /**
    * Le piege sur lequel on est tombe : un oeil dont le rapport largeur/hauteur
    * approche 1 est un cercle, il a la meme allure a tout angle et son
@@ -51,7 +40,7 @@ describe('catalogue des expressions', () => {
         const seuil = tilt >= 20 ? [0.6, 1.7] : [0.8, 1.25]
         expect(
           rapport < seuil[0]! || rapport > seuil[1]!,
-          `${e.label}: rapport ${rapport.toFixed(2)} trop proche de 1 pour une inclinaison de ${tilt}deg`
+          `${e.id}: rapport ${rapport.toFixed(2)} trop proche de 1 pour une inclinaison de ${tilt}deg`
         ).toBe(true)
       }
     }
@@ -75,13 +64,13 @@ describe('catalogue des expressions', () => {
   it('garde les deux yeux dans la silhouette, sur les 16 expressions', () => {
     for (const e of EXPRESSIONS) {
       const f = new BotEngine(100, 'idle', cercle(), e).sample(1)
-      expect(f.eyes, e.label).toHaveLength(2)
+      expect(f.eyes, e.id).toHaveLength(2)
       for (let i = 0; i < 2; i++) {
         const r = rendu(f.eyes[i]!.matrix, e.eyes[i]!.w, e.eyes[i]!.h)
         // demi-diagonale de l'oeil : le coin le plus lointain doit rester dedans
         const demi = Math.hypot(r.largeur, r.hauteur) / 2
         const bord = radiusAtAngle(cercle(), Math.atan2(r.y, r.x)) * 100
-        expect(Math.hypot(r.x, r.y) + demi, `${e.label} oeil ${i}`).toBeLessThan(bord * 1.02)
+        expect(Math.hypot(r.x, r.y) + demi, `${e.id} oeil ${i}`).toBeLessThan(bord * 1.02)
       }
     }
   })

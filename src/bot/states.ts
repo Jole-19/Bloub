@@ -165,7 +165,6 @@ export type StateId =
 
 export interface StateDef {
   id: StateId
-  label: string
   hint: string
   /** duree de maintien quand la sequence complete est jouee */
   duration: number
@@ -206,7 +205,6 @@ function dotPulse(t: number, index: number): number {
 export const STATES: StateDef[] = [
   {
     id: 'idle',
-    label: 'Repos',
     hint: 'Boule, yeux gélules inclinés, dérive du regard et clignements',
     duration: 2.4,
     morph: 0.45,
@@ -218,7 +216,6 @@ export const STATES: StateDef[] = [
 
   {
     id: 'thinking',
-    label: 'Réflexion',
     hint: 'Trois points, onde de pulsation de gauche à droite',
     duration: 2.6,
     morph: 0.4,
@@ -249,7 +246,6 @@ export const STATES: StateDef[] = [
 
   {
     id: 'wink',
-    label: "Clin d'œil",
     hint: 'Œil extérieur fermé en tiret, œil intérieur grand ouvert',
     duration: 1.6,
     morph: 0.3,
@@ -271,7 +267,6 @@ export const STATES: StateDef[] = [
 
   {
     id: 'wide',
-    label: 'Yeux écarquillés',
     hint: 'Yeux deux fois plus grands, regard vers le bas',
     duration: 1.8,
     morph: 0.55,
@@ -288,7 +283,6 @@ export const STATES: StateDef[] = [
 
   {
     id: 'alert',
-    label: 'Alerte',
     hint: "Point d'exclamation penché qui traverse en vibrant",
     duration: 2.4,
     // le "!" revient en place a 1.6 + 0.4
@@ -326,7 +320,6 @@ export const STATES: StateDef[] = [
 
   {
     id: 'notify',
-    label: 'Notification',
     hint: 'Pastille bleue sur le contour, encoche creusée, gros yeux ronds',
     duration: 2.2,
     morph: 0.5,
@@ -356,7 +349,6 @@ export const STATES: StateDef[] = [
 
   {
     id: 'exclaim',
-    label: 'Exclamation',
     hint: "Point d'exclamation vertical, barre tronconique",
     duration: 2,
     morph: 0.45,
@@ -373,7 +365,6 @@ export const STATES: StateDef[] = [
 
   {
     id: 'sleep',
-    label: 'Veille',
     hint: 'Réduction en un point qui rebondit verticalement',
     duration: 2.4,
     morph: 0.5,
@@ -390,7 +381,6 @@ export const STATES: StateDef[] = [
 
   {
     id: 'egg',
-    label: 'Œuf',
     hint: 'Même hauteur que la boule, rétréci en largeur, plus large en bas',
     duration: 1.8,
     morph: 0.4,
@@ -409,7 +399,6 @@ export const STATES: StateDef[] = [
 
   {
     id: 'hexagon',
-    label: 'Hexagone',
     hint: 'Hexagone pointe en haut, coins très arrondis',
     duration: 1.6,
     morph: 0.4,
@@ -427,7 +416,6 @@ export const STATES: StateDef[] = [
 
   {
     id: 'play',
-    label: 'Lecture',
     hint: "Triangle arrondi, bouquet d'arcs colorés qui le balaie",
     duration: 2,
     morph: 0.5,
@@ -455,7 +443,6 @@ export const STATES: StateDef[] = [
 
   {
     id: 'orbit',
-    label: 'Orbite',
     hint: 'Anneaux arc-en-ciel en orbite 3D, le triangle tourne puis se relâche',
     duration: 3.4,
     // le corps a fini de se relacher du triangle vers la boule a 1.6 + 0.9
@@ -503,7 +490,6 @@ export const STATES: StateDef[] = [
 
   {
     id: 'burst',
-    label: 'Éclatement',
     hint: 'Le corps se disperse en particules qui spiralent puis se recompose',
     duration: 2.6,
     // le corps est recompose a 1.7 + 0.7
@@ -527,7 +513,6 @@ export const STATES: StateDef[] = [
 
   {
     id: 'comet',
-    label: 'Comète',
     hint: 'Le point reste au centre, la traînée arc-en-ciel lui tourne autour',
     duration: 2.4,
     // le point se recompose a 1.85 + 0.6 = 2.45, soit 0.05 s apres la coupe de

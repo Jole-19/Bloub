@@ -66,8 +66,14 @@ export function makeBlock(state: StateId): Block {
  */
 export function defaultCycle(): Cycle {
   return {
+    /**
+     * Nom vide = « jamais nomme par l'utilisateur », donc affiche dans la langue
+     * courante. Ecrire ici « Cycle par defaut » l'aurait fige : le nom part au
+     * localStorage des la premiere visite et redevient une donnee utilisateur,
+     * que changer de langue ne retraduirait plus.
+     */
+    name: '',
     id: DEFAULT_CYCLE_ID,
-    name: 'Cycle par défaut',
     blocks: SEQUENCE.map(makeBlock)
   }
 }
@@ -149,7 +155,8 @@ function parseCycle(raw: unknown, seen: Cycle[]): Cycle | null {
   if (typeof raw !== 'object' || raw === null) return null
   const { id, name, blocks } = raw as { id?: unknown; name?: unknown; blocks?: unknown }
   if (typeof id !== 'string' || !id) return null
-  if (typeof name !== 'string' || !name) return null
+  // le nom peut etre vide — c'est le montage d'amorce, qui suit la langue
+  if (typeof name !== 'string') return null
   if (!Array.isArray(blocks)) return null
   const kept = blocks.map(parseBlock).filter((b): b is Block => b !== null)
   if (!kept.length) return null

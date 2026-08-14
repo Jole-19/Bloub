@@ -1,7 +1,9 @@
 <script setup lang="ts">
-import { computed, onBeforeUnmount, onMounted, shallowRef, triggerRef, watch } from 'vue'
+import { computed, onBeforeUnmount, onMounted, ref, shallowRef, triggerRef, watch } from 'vue'
 import { NOTIF_BLUE } from '@/bot/decor'
 import { BotEngine, type BotFrame } from '@/bot/engine'
+import { clamp } from '@/bot/math'
+import { t } from '@/i18n'
 import {
   DEFAULT_EXPRESSION,
   EXPRESSION_BY_ID
@@ -39,6 +41,12 @@ const props = withDefaults(
      * son bloc. Par defaut, le cycle releve sur la video.
      */
     cycle?: Block[]
+    /**
+     * Le regard suit le pointeur. Hors de portee des vignettes figees, qui n'ont
+     * pas de boucle d'animation : les brancher reveillerait autant de boucles
+     * qu'il y a de cases.
+     */
+    follow?: boolean
   }>(),
   {
     size: 320,
@@ -47,7 +55,8 @@ const props = withDefaults(
     expression: DEFAULT_EXPRESSION,
     paper: '#f9f9f9',
     frozenAt: undefined,
-    cycle: () => defaultCycle().blocks
+    cycle: () => defaultCycle().blocks,
+    follow: false
   }
 )
 
@@ -126,6 +135,64 @@ function seek(index: number, offset = 0) {
 
 defineExpose({ seek })
 
+/* ------------------------------------------------------- regard qui suit */
+
+/**
+ * Amplitude du suivi, en degres d'orientation de tete. CHOISIE, pas relevee :
+ * la video de reference ne montre aucun suivi de curseur. Assez ample pour se
+ * distinguer de la derive au repos (±7deg de lacet, ±5,5 de tangage), assez
+ * retenue pour qu'aucun oeil ne parte derriere le limbe de la sphere — au-dela
+ * d'une trentaine de degres l'oeil exterieur commence a disparaitre.
+ */
+const YAW_MAX = 20
+const PITCH_MAX = 13
+
+const svg = ref<SVGSVGElement | null>(null)
+
+/** Derniere position connue du pointeur, en coordonnees client. */
+let pointer: { x: number; y: number } | null = null
+/** true = une cible est posee sur le moteur, donc il y a de quoi relacher. */
+let aiming = false
+
+function onPointerMove(event: PointerEvent) {
+  // Le tactile n'a pas de curseur qui traine : un doigt leve laisserait le
+  // regard fige sur le dernier point touche, ce qui se lit comme un bug.
+  if (event.pointerType === 'touch') return
+  pointer = { x: event.clientX, y: event.clientY }
+}
+
+function onPointerLeave() {
+  pointer = null
+}
+
+function release() {
+  if (!aiming) return
+  engine.setLook(null, clock)
+  aiming = false
+}
+
+/**
+ * Vise le pointeur. Le rectangle est relu a chaque image plutot que memorise :
+ * l'avatar glisse pendant la transition de vue, et un centre garde en cache
+ * ferait viser a cote pendant tout le glissement.
+ *
+ * La normalisation se fait sur la demi-fenetre, pas sur la taille de l'avatar :
+ * le regard doit saturer quand le curseur atteint le bord de l'ecran, quelle
+ * que soit la place que l'avatar occupe.
+ */
+function aim() {
+  const box = svg.value?.getBoundingClientRect()
+  if (!box || !pointer) {
+    release()
+    return
+  }
+  const nx = clamp((pointer.x - (box.left + box.width / 2)) / (window.innerWidth / 2), -1, 1)
+  const ny = clamp((pointer.y - (box.top + box.height / 2)) / (window.innerHeight / 2), -1, 1)
+  // tangage positif = regard vers le haut, alors que le y de l'ecran descend
+  engine.setLook({ yaw: nx * YAW_MAX, pitch: -ny * PITCH_MAX, mix: 1 }, clock)
+  aiming = true
+}
+
 function tick(ms: number) {
   raf = requestAnimationFrame(tick)
   // Horloge de scene a delta borne : un onglet masque puis reaffiche reprend
@@ -144,6 +211,8 @@ function tick(ms: number) {
       elapsed.value = clock - blockStart
     }
   }
+
+  if (props.follow) aim()
 
   frame.value = engine.sample(clock)
   triggerRef(frame)
@@ -210,13 +279,40 @@ watch(expression, (expr) => {
   redrawFrozen()
 })
 
+/**
+ * L'ecoute du pointeur ne vit que le temps du suivi. `immediate` parce que la
+ * vue peut s'ouvrir deja en mode suivi ; le garde sur `frozenAt` parce qu'une
+ * vignette figee n'a pas de boucle pour consommer la cible, donc rien a ecouter.
+ */
+watch(
+  () => props.follow && props.frozenAt === undefined,
+  (on) => {
+    if (on) {
+      window.addEventListener('pointermove', onPointerMove)
+      document.addEventListener('pointerleave', onPointerLeave)
+      return
+    }
+    detach()
+    release()
+  },
+  { immediate: true }
+)
+
+function detach() {
+  window.removeEventListener('pointermove', onPointerMove)
+  document.removeEventListener('pointerleave', onPointerLeave)
+}
+
 onMounted(() => {
   if (props.frozenAt !== undefined) return
   // le curseur peut arriver deja pose (URL, cycle relu du stockage)
   apply(block.value, elapsed.value)
   raf = requestAnimationFrame(tick)
 })
-onBeforeUnmount(() => cancelAnimationFrame(raf))
+onBeforeUnmount(() => {
+  cancelAnimationFrame(raf)
+  detach()
+})
 
 /**
  * Un point est un simple disque, sauf quand l'etat fournit une forme (la
@@ -242,11 +338,12 @@ function dotAttrs(dot: BotFrame['dots'][number]) {
 
 <template>
   <svg
+    ref="svg"
     :width="props.size"
     :height="props.size"
     :viewBox="`${-VB} ${-VB} ${VB * 2} ${VB * 2}`"
     role="img"
-    aria-label="Avatar Grok anime"
+    :aria-label="t('app.botAria')"
   >
     <defs>
       <!--

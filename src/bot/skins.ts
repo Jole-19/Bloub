@@ -17,9 +17,25 @@ import {
  * base sont un choix d'utilisateur.
  */
 
+/**
+ * Les identifiants sont enumeres plutot que deduits du tableau : c'est ce qui
+ * permet a la couche i18n de verifier A LA COMPILATION que chaque forme a bien
+ * sa traduction dans les trois langues (`t(\`shapes.${id}\`)` ne compile que si
+ * la cle existe). Un `as const` sur le tableau aurait le meme effet mais
+ * rendrait `radii` en lecture seule, alors que le moteur le passe tel quel.
+ */
+export type ShapeId =
+  | 'cercle'
+  | 'galet'
+  | 'squircle'
+  | 'capsule'
+  | 'triangle'
+  | 'hexagone'
+  | 'nuage'
+  | 'goutte'
+
 export interface BotShape {
-  id: string
-  label: string
+  id: ShapeId
   radii: number[]
 }
 
@@ -61,46 +77,61 @@ const droplet = normalize(
 const capsule = profileFromPolygon(hullOfCircles(-0.42, 0, 0.62, 0.42, 0, 0.62), 0, 0)
 
 export const SHAPES: BotShape[] = [
-  { id: 'cercle', label: 'Cercle', radii: new Array(PROFILE_SAMPLES).fill(1) },
-  { id: 'galet', label: 'Galet', radii: pebble },
+  { id: 'cercle', radii: new Array(PROFILE_SAMPLES).fill(1) },
+  { id: 'galet', radii: pebble },
   // 1.15 et pas 1.02 : sur une superellipse le rayon maximal est la diagonale,
   // donc normaliser dessus donne une forme qui parait plus petite que le cercle.
-  { id: 'squircle', label: 'Squircle', radii: normalize(superellipseProfile(4.2), 1.15) },
-  { id: 'capsule', label: 'Capsule', radii: capsule },
+  { id: 'squircle', radii: normalize(superellipseProfile(4.2), 1.15) },
+  { id: 'capsule', radii: capsule },
   // -90deg : un sommet vers le haut de l'ecran (y est oriente vers le bas)
-  { id: 'triangle', label: 'Triangle', radii: regularPolygonProfile(3, 1.12, 0.34, -90) },
+  { id: 'triangle', radii: regularPolygonProfile(3, 1.12, 0.34, -90) },
   // 0deg : sommets a gauche et a droite, donc aretes du haut et du bas plates
-  { id: 'hexagone', label: 'Hexagone', radii: regularPolygonProfile(6, 1.04, 0.26, 0) },
-  { id: 'nuage', label: 'Nuage', radii: cloud },
-  { id: 'goutte', label: 'Goutte', radii: droplet }
+  { id: 'hexagone', radii: regularPolygonProfile(6, 1.04, 0.26, 0) },
+  { id: 'nuage', radii: cloud },
+  { id: 'goutte', radii: droplet }
 ]
 
-export const SHAPE_BY_ID = new Map(SHAPES.map((s) => [s.id, s]))
+// Map indexee par `string` et non par `ShapeId` : les appelants interrogent avec
+// une valeur relue du localStorage ou d'une prop, donc non validee.
+export const SHAPE_BY_ID = new Map<string, BotShape>(SHAPES.map((s) => [s.id, s]))
 export const DEFAULT_SHAPE = 'cercle'
 
+export type ColorId =
+  | 'encre'
+  | 'creme'
+  | 'brun'
+  | 'rouge'
+  | 'orange'
+  | 'ambre'
+  | 'vert'
+  | 'turquoise'
+  | 'bleu'
+  | 'violet'
+  | 'rose'
+  | 'gris'
+
 export interface BotColor {
-  id: string
-  label: string
+  id: ColorId
   hex: string
 }
 
 /** Palette du personnalisateur d'origine. */
 export const COLORS: BotColor[] = [
-  { id: 'encre', label: 'Encre', hex: '#0a0a0c' },
-  { id: 'creme', label: 'Crème', hex: '#f1efe9' },
-  { id: 'brun', label: 'Brun', hex: '#8b5e3c' },
-  { id: 'rouge', label: 'Rouge', hex: '#e8483f' },
-  { id: 'orange', label: 'Orange', hex: '#f08a24' },
-  { id: 'ambre', label: 'Ambre', hex: '#f0b429' },
-  { id: 'vert', label: 'Vert', hex: '#3ecf8e' },
-  { id: 'turquoise', label: 'Turquoise', hex: '#2fbfa0' },
-  { id: 'bleu', label: 'Bleu', hex: '#3b93f0' },
-  { id: 'violet', label: 'Violet', hex: '#8b5cf6' },
-  { id: 'rose', label: 'Rose', hex: '#e152b0' },
-  { id: 'gris', label: 'Gris', hex: '#a3a3a3' }
+  { id: 'encre', hex: '#0a0a0c' },
+  { id: 'creme', hex: '#f1efe9' },
+  { id: 'brun', hex: '#8b5e3c' },
+  { id: 'rouge', hex: '#e8483f' },
+  { id: 'orange', hex: '#f08a24' },
+  { id: 'ambre', hex: '#f0b429' },
+  { id: 'vert', hex: '#3ecf8e' },
+  { id: 'turquoise', hex: '#2fbfa0' },
+  { id: 'bleu', hex: '#3b93f0' },
+  { id: 'violet', hex: '#8b5cf6' },
+  { id: 'rose', hex: '#e152b0' },
+  { id: 'gris', hex: '#a3a3a3' }
 ]
 
-export const COLOR_BY_ID = new Map(COLORS.map((c) => [c.id, c]))
+export const COLOR_BY_ID = new Map<string, BotColor>(COLORS.map((c) => [c.id, c]))
 export const DEFAULT_COLOR = 'encre'
 
 /** Melange deux couleurs hex. Sert a la brume de profondeur des particules. */

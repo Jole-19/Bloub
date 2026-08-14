@@ -18,6 +18,7 @@ import {
   type Cycle
 } from '@/bot/cycles'
 import { POSES, SEQUENCE, STATE_BY_ID, type StateId } from '@/bot/states'
+import { nomDeCycle, pluriel, secondes, secondesCourtes, t } from '@/i18n'
 
 const props = defineProps<{
   /** temps ecoule dans le bloc courant, pour la tete de lecture */
@@ -68,10 +69,7 @@ const dialogOpen = ref(false)
 /** Montage en attente de confirmation de suppression. */
 const removing = ref<Cycle | null>(null)
 const confirmOpen = ref(false)
-const removingDetail = computed(() => {
-  const n = removing.value?.blocks.length ?? 0
-  return `Ce montage sera perdu, avec ${n === 1 ? 'son animation' : `ses ${n} animations`}.`
-})
+const removingDetail = computed(() => pluriel('dialog.removeDetail', removing.value?.blocks.length ?? 0))
 /** Debordement de la piste, pour n'afficher les degrades que s'ils servent. */
 const overflow = ref({ left: false, right: false })
 /**
@@ -86,17 +84,18 @@ function width(index: number) {
 }
 
 function label(index: number) {
-  return STATE_BY_ID.get(blocks.value[index]!.state)?.label ?? '?'
+  return t(`states.${blocks.value[index]!.state}`)
 }
 
-/** `0:04` — les dixiemes changeraient trop vite pour etre lisibles. */
-function mmss(t: number) {
-  const s = Math.max(0, Math.floor(t))
+/**
+ * `0:04` — les dixiemes changeraient trop vite pour etre lisibles.
+ *
+ * Seul format qui ne passe pas par la couche i18n : le mm:ss est la meme
+ * convention dans les trois langues, et il n'a pas d'unite a traduire.
+ */
+function mmss(instant: number) {
+  const s = Math.max(0, Math.floor(instant))
   return `${Math.floor(s / 60)}:${String(s % 60).padStart(2, '0')}`
-}
-
-function seconds(d: number) {
-  return `${d.toFixed(1).replace('.', ',')} s`
 }
 
 /* ------------------------------------------------------------- graduation */
@@ -121,12 +120,12 @@ const ticks = computed(() => {
 })
 
 /** `0s`, `10s`, `0,5s` — court, c'est une graduation, pas un compteur. */
-function graduation(t: number) {
-  return `${Number.isInteger(t) ? t : t.toFixed(1).replace('.', ',')}s`
+function graduation(instant: number) {
+  return secondesCourtes(instant, Number.isInteger(instant) ? 0 : 1)
 }
 
 /** Le compteur du haut arrondit a la seconde ; en deplacant, on veut le dixieme. */
-const exact = computed(() => `${at.value.toFixed(1).replace('.', ',')} s`)
+const exact = computed(() => secondes(at.value))
 
 function onScroll() {
   const el = track.value
@@ -202,13 +201,16 @@ function select(id: string) {
 
 function askCreate() {
   naming.value = { mode: 'create' }
-  nameDraft.value = uniqueName('Mon cycle', cycles.value)
+  nameDraft.value = uniqueName(t('cycles.newName'), cycles.value)
   dialogOpen.value = true
 }
 
 function askRename(id: string) {
   naming.value = { mode: 'rename', id }
-  nameDraft.value = cycles.value.find((c) => c.id === id)?.name ?? ''
+  const vise = cycles.value.find((c) => c.id === id)
+  // le montage d'amorce n'a pas de nom propre : on part de celui qui s'affiche,
+  // sinon renommer commencerait sur un champ vide
+  nameDraft.value = vise ? nomDeCycle(vise) : ''
   dialogOpen.value = true
 }
 
@@ -417,7 +419,7 @@ watch(block, () => {
       <button
         type="button"
         class="flex h-11 w-11 cursor-pointer items-center justify-center rounded-full bg-[var(--ink)] text-[var(--paper)] shadow-sm transition hover:scale-105 active:scale-95"
-        :aria-label="playing ? 'Arreter la lecture' : 'Lancer la lecture'"
+        :aria-label="playing ? t('timeline.pause') : t('timeline.play')"
         @click="playing = !playing"
       >
         <svg v-if="!playing" width="15" height="15" viewBox="0 0 16 16" aria-hidden="true">
@@ -449,7 +451,7 @@ watch(block, () => {
           <button
             type="button"
             class="flex h-6 w-6 cursor-pointer items-center justify-center rounded-md text-[var(--muted)] transition hover:bg-black/5 hover:text-[var(--ink)] disabled:opacity-30 disabled:hover:bg-transparent"
-            aria-label="Dézoomer la piste"
+            :aria-label="t('timeline.zoomOut')"
             :disabled="zoom <= MIN_ZOOM"
             @click="zoomAt(zoom / 1.3)"
           >
@@ -460,7 +462,7 @@ watch(block, () => {
           <button
             type="button"
             class="flex h-6 w-6 cursor-pointer items-center justify-center rounded-md text-[var(--muted)] transition hover:bg-black/5 hover:text-[var(--ink)] disabled:opacity-30 disabled:hover:bg-transparent"
-            aria-label="Zoomer la piste"
+            :aria-label="t('timeline.zoomIn')"
             :disabled="zoom >= MAX_ZOOM"
             @click="zoomAt(zoom * 1.3)"
           >
@@ -541,7 +543,7 @@ watch(block, () => {
                       ? 'bg-white ring-2 ring-[var(--ink)] ring-inset'
                       : 'bg-black/[0.045] hover:bg-black/[0.08]'
                   "
-                  :aria-label="`${label(i)}, ${seconds(b.duration)}`"
+                  :aria-label="t('timeline.blockAria', { state: label(i), duration: secondes(b.duration) })"
                   :aria-current="i === block ? 'true' : undefined"
                   @pointerdown="onBlockDown(i, $event)"
                   @pointermove="onBlockMove"
@@ -572,7 +574,7 @@ watch(block, () => {
                     :class="i === block ? 'font-medium text-[var(--ink)]' : 'text-[var(--muted)]'"
                   >
                     <span>{{ i + 1 }}</span>
-                    <span v-if="width(i) > 60" class="truncate">{{ seconds(b.duration) }}</span>
+                    <span v-if="width(i) > 60" class="truncate">{{ secondes(b.duration) }}</span>
                   </span>
                 </button>
 
@@ -580,7 +582,12 @@ watch(block, () => {
                   <button
                     type="button"
                     class="absolute inset-y-2 right-0.5 w-1 cursor-ew-resize rounded-full bg-[var(--muted)] opacity-0 transition group-hover:opacity-60 hover:opacity-100! focus-visible:opacity-100"
-                    :aria-label="`Durée de ${label(i)}, ${seconds(b.duration)}`"
+                    :aria-label="
+                      t('timeline.blockDurationAria', {
+                        state: label(i),
+                        duration: secondes(b.duration)
+                      })
+                    "
                     @pointerdown="onResizeDown(i, $event)"
                     @pointermove="onResizeMove"
                     @pointerup="resize = null"
@@ -592,7 +599,7 @@ watch(block, () => {
                     v-if="blocks.length > 1"
                     type="button"
                     class="absolute top-1 right-2 flex h-5 w-5 cursor-pointer items-center justify-center rounded-full bg-black/10 text-xs leading-none text-[var(--ink)] opacity-0 transition group-hover:opacity-100 hover:bg-black/20 focus-visible:opacity-100"
-                    :aria-label="`Retirer ${label(i)}`"
+                    :aria-label="t('timeline.blockRemoveAria', { state: label(i) })"
                     @click="removeBlock(i)"
                   >
                     ×

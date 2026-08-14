@@ -21,9 +21,27 @@ import type { EyeCfg } from './states'
  * eux la largeur va de 0,8 à 2,7 fois le neutre, la hauteur de 0,3 à 1,5, et
  * les angles jusqu'à ±80°. On reste dans cette enveloppe.
  */
+/** Enumeres pour que la couche i18n verifie leurs traductions a la compilation. */
+export type ExpressionId =
+  | 'neutre'
+  | 'attentif'
+  | 'surpris'
+  | 'excite'
+  | 'heureux'
+  | 'hilare'
+  | 'colere'
+  | 'triste'
+  | 'effraye'
+  | 'mefiant'
+  | 'confus'
+  | 'curieux'
+  | 'fier'
+  | 'timide'
+  | 'blase'
+  | 'somnolent'
+
 export interface BotExpression {
-  id: string
-  label: string
+  id: ExpressionId
   gaze: HeadGaze
   split: number
   eyes: [EyeCfg, EyeCfg]
@@ -42,28 +60,24 @@ export const EXPRESSIONS: BotExpression[] = [
   {
     // la pose relevée image par image sur la vidéo de référence
     id: 'neutre',
-    label: 'Neutre',
     gaze: { ...REST_GAZE },
     split: EYE_SPLIT,
     eyes: [eye(EYE_W, EYE_H), eye(EYE_W, EYE_H)]
   },
   {
     id: 'attentif',
-    label: 'Attentif',
     gaze: { yaw: 4, pitch: 5, roll: -4 },
     split: 16,
     eyes: pair(0.21, 0.44)
   },
   {
     id: 'surpris',
-    label: 'Surpris',
     gaze: { yaw: 3, pitch: -3, roll: 0 },
     split: 19,
     eyes: pair(0.45, 0.47)
   },
   {
     id: 'excite',
-    label: 'Excité',
     gaze: { yaw: 6, pitch: -14, roll: 0 },
     split: 19.5,
     eyes: pair(0.4, 0.56, -10)
@@ -71,14 +85,12 @@ export const EXPRESSIONS: BotExpression[] = [
   {
     // yeux plissés en arc : les hauts convergent légèrement
     id: 'heureux',
-    label: 'Heureux',
     gaze: { yaw: 5, pitch: 9, roll: 0 },
     split: 17,
     eyes: pair(0.27, 0.17, 14)
   },
   {
     id: 'hilare',
-    label: 'Hilare',
     gaze: { yaw: 4, pitch: 14, roll: 0 },
     split: 18,
     eyes: pair(0.34, 0.13, 20)
@@ -86,7 +98,6 @@ export const EXPRESSIONS: BotExpression[] = [
   {
     // hauts des yeux qui convergent fort vers le centre + yeux étrécis
     id: 'colere',
-    label: 'En colère',
     gaze: { yaw: 3, pitch: 7, roll: 0 },
     split: 17,
     eyes: pair(0.34, 0.15, 30)
@@ -94,14 +105,12 @@ export const EXPRESSIONS: BotExpression[] = [
   {
     // l'inverse : les hauts divergent, et le regard tombe
     id: 'triste',
-    label: 'Triste',
     gaze: { yaw: 3, pitch: -13, roll: 0 },
     split: 16,
     eyes: pair(0.22, 0.4, -28)
   },
   {
     id: 'effraye',
-    label: 'Effrayé',
     gaze: { yaw: 2, pitch: -20, roll: 0 },
     split: 20.5,
     eyes: pair(0.4, 0.6)
@@ -109,7 +118,6 @@ export const EXPRESSIONS: BotExpression[] = [
   {
     // un œil franchement plus fermé que l'autre
     id: 'mefiant',
-    label: 'Méfiant',
     gaze: { yaw: 12, pitch: 6, roll: -6 },
     split: 16,
     eyes: [eye(0.21, 0.4), eye(0.22, 0.15)]
@@ -119,7 +127,6 @@ export const EXPRESSIONS: BotExpression[] = [
     // L'œil plissé est volontairement plat (rapport 1,6) : à un rapport proche
     // de 1 il serait rond, et son inclinaison ne se verrait pas.
     id: 'confus',
-    label: 'Confus',
     gaze: { yaw: -14, pitch: 3, roll: 8 },
     split: 16.5,
     eyes: [eye(0.2, 0.44, -18), eye(0.28, 0.17, 14)]
@@ -127,21 +134,18 @@ export const EXPRESSIONS: BotExpression[] = [
   {
     // la tête penche : c'est le roulis qui porte la curiosité
     id: 'curieux',
-    label: 'Curieux',
     gaze: { yaw: 16, pitch: -9, roll: -15 },
     split: 16.5,
     eyes: [eye(0.24, 0.46, -8), eye(0.2, 0.38, -8)]
   },
   {
     id: 'fier',
-    label: 'Fier',
     gaze: { yaw: 5, pitch: 17, roll: 0 },
     split: 17,
     eyes: pair(0.3, 0.15, 18)
   },
   {
     id: 'timide',
-    label: 'Timide',
     gaze: { yaw: -19, pitch: -14, roll: -7 },
     split: 14,
     eyes: pair(0.17, 0.3)
@@ -149,7 +153,6 @@ export const EXPRESSIONS: BotExpression[] = [
   {
     // fentes horizontales et regard qui part sur le côté
     id: 'blase',
-    label: 'Blasé',
     gaze: { yaw: -22, pitch: 2, roll: 0 },
     split: 16,
     eyes: pair(0.3, 0.12)
@@ -158,14 +161,13 @@ export const EXPRESSIONS: BotExpression[] = [
     // paupières à moitié tombées : on passe par `open`, donc l'écrasement
     // vertical à l'écran, le même mécanisme que le clignement
     id: 'somnolent',
-    label: 'Somnolent',
     gaze: { yaw: 6, pitch: -9, roll: -3 },
     split: 16,
     eyes: pair(0.2, 0.42, 0, 0.42)
   }
 ]
 
-export const EXPRESSION_BY_ID = new Map(EXPRESSIONS.map((e) => [e.id, e]))
+export const EXPRESSION_BY_ID = new Map<string, BotExpression>(EXPRESSIONS.map((e) => [e.id, e]))
 export const DEFAULT_EXPRESSION = 'neutre'
 
 const lerpEyeCfg = (a: EyeCfg, b: EyeCfg, t: number): EyeCfg => ({
@@ -179,7 +181,6 @@ const lerpEyeCfg = (a: EyeCfg, b: EyeCfg, t: number): EyeCfg => ({
 export function blendExpression(a: BotExpression, b: BotExpression, t: number): BotExpression {
   return {
     id: b.id,
-    label: b.label,
     gaze: {
       yaw: lerp(a.gaze.yaw, b.gaze.yaw, t),
       pitch: lerp(a.gaze.pitch, b.gaze.pitch, t),
