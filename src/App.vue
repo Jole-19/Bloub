@@ -1,0 +1,133 @@
+<script setup lang="ts">
+import { computed, ref, watch } from 'vue'
+import GrokBot from '@/components/GrokBot.vue'
+import { STATES, SEQUENCE, type StateId } from '@/bot/states'
+
+/**
+ * L'URL pilote la vue : `#etat=orbit&stop` ouvre un etat precis sequence a
+ * l'arret, `#planche` affiche la planche. On relit a chaque `hashchange` pour
+ * que les boutons precedent/suivant du navigateur fonctionnent vraiment.
+ */
+function readHash() {
+  const params = new URLSearchParams(location.hash.slice(1))
+  const asked = params.get('etat') as StateId | null
+  return {
+    // on ne fait jamais confiance a l'URL : l'etat doit exister
+    state: STATES.some((s) => s.id === asked) ? asked! : 'idle',
+    playing: !params.has('stop'),
+    gallery: params.has('planche')
+  }
+}
+
+const initial = readHash()
+const state = ref<StateId>(initial.state)
+const playing = ref(initial.playing)
+const gallery = ref(initial.gallery)
+
+watch(state, (id) => {
+  // replace et pas push : on ne veut pas un cran d'historique par etat
+  location.replace(`#etat=${id}${playing.value ? '' : '&stop'}`)
+})
+
+window.addEventListener('hashchange', () => {
+  const next = readHash()
+  gallery.value = next.gallery
+  if (!next.gallery) state.value = next.state
+})
+
+const current = computed(() => STATES.find((s) => s.id === state.value))
+const order = computed(() => SEQUENCE.map((id) => STATES.find((s) => s.id === id)!))
+
+/**
+ * Planche d'etats : chaque vignette est figee a une date choisie pour montrer
+ * l'etat a son moment le plus lisible. Rendu deterministe, donc comparable
+ * d'une execution a l'autre. Typer par StateId force a couvrir tout nouvel etat.
+ */
+const POSES: Record<StateId, number> = {
+  idle: 1,
+  thinking: 1.1,
+  wink: 0.8,
+  wide: 0.8,
+  alert: 0.75,
+  notify: 0.9,
+  exclaim: 0.8,
+  sleep: 0.45,
+  egg: 0.8,
+  hexagon: 0.8,
+  play: 0.9,
+  orbit: 1.2,
+  burst: 0.45,
+  comet: 1.15
+}
+</script>
+
+<template>
+  <div v-if="gallery" class="p-5">
+    <a class="text-xs text-[var(--muted)] underline underline-offset-2" href="#">
+      Retour au lecteur
+    </a>
+    <div class="mt-4 grid grid-cols-[repeat(auto-fill,minmax(210px,1fr))] gap-3">
+      <figure v-for="s in order" :key="s.id" class="flex flex-col items-center">
+        <GrokBot :state="s.id" :size="210" :frozen-at="POSES[s.id]" />
+        <figcaption class="text-xs text-[var(--muted)]">{{ s.label }}</figcaption>
+      </figure>
+    </div>
+  </div>
+
+  <div v-else class="flex min-h-full items-stretch justify-center gap-10 p-8 max-lg:flex-col">
+    <!-- scene -->
+    <main class="flex flex-1 flex-col items-center justify-center gap-8">
+      <div class="flex aspect-square w-full max-w-[460px] items-center justify-center">
+        <GrokBot v-model:state="state" v-model:playing="playing" :size="440" />
+      </div>
+
+      <div class="flex flex-col items-center gap-3">
+        <button
+          type="button"
+          class="flex h-12 w-12 cursor-pointer items-center justify-center rounded-full border border-[var(--line)] bg-white transition hover:border-[var(--ink)] active:scale-95"
+          :aria-label="playing ? 'Arreter la sequence' : 'Lancer la sequence'"
+          @click="playing = !playing"
+        >
+          <svg v-if="!playing" width="16" height="16" viewBox="0 0 16 16" aria-hidden="true">
+            <path d="M4 2.5 13 8l-9 5.5z" fill="currentColor" />
+          </svg>
+          <svg v-else width="16" height="16" viewBox="0 0 16 16" aria-hidden="true">
+            <rect x="3.5" y="3" width="3.2" height="10" rx="1" fill="currentColor" />
+            <rect x="9.3" y="3" width="3.2" height="10" rx="1" fill="currentColor" />
+          </svg>
+        </button>
+        <p class="text-center text-xs text-[var(--muted)]">
+          <span class="font-medium text-[var(--ink)]">{{ current?.label }}</span>
+          — {{ current?.hint }}
+        </p>
+      </div>
+    </main>
+
+    <!-- panneau de declenchement manuel -->
+    <aside class="w-full lg:w-64 lg:shrink-0">
+      <h1 class="text-sm font-semibold">Grok bot</h1>
+      <p class="mt-1 mb-3 text-xs leading-relaxed text-[var(--muted)]">
+        Morphing SVG. Le lecteur enchaine la sequence ; chaque bouton declenche un etat a la main.
+        <a class="underline underline-offset-2" href="#planche">Voir la planche</a>
+      </p>
+      <div class="flex flex-col gap-0.5">
+        <button
+          v-for="s in order"
+          :key="s.id"
+          type="button"
+          :title="s.hint"
+          class="cursor-pointer rounded border px-2.5 py-1.5 text-left text-xs transition"
+          :class="
+            s.id === state
+              ? 'border-[var(--ink)] bg-[var(--ink)] text-[var(--paper)]'
+              : 'border-[var(--line)] bg-white hover:border-[var(--ink)]'
+          "
+          @click="state = s.id"
+        >
+          <span class="font-medium">{{ s.label }}</span>
+          <span class="block truncate text-[11px] opacity-55">{{ s.hint }}</span>
+        </button>
+      </div>
+    </aside>
+  </div>
+</template>

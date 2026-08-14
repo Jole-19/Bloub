@@ -1,0 +1,24 @@
+@import 'tailwindcss';
+
+:root {
+  /* Fond et encre releves au pixel sur la video de reference. */
+  --paper: #f9f9f9;
+  --ink: #0a0a0c;
+  --line: #e4e4e4;
+  --muted: #767676;
+}
+
+html,
+body,
+#app {
+  height: 100%;
+}
+
+body {
+  margin: 0;
+  background: var(--paper);
+  color: var(--ink);
+  font-family:
+    ui-sans-serif, system-ui, -apple-system, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+  -webkit-font-smoothing: antialiased;
+}

@@ -1,0 +1,189 @@
+import { arcRender, type ArcRender, type DotRender } from './decor'
+import { blinkScale, eyePoses, liveliness } from './face'
+import { clamp, easings, lerp, r2 } from './math'
+import { blend, capsulePath, closedPath, toPoints, type Point, type Silhouette } from './shape'
+import { STATE_BY_ID, STATES, type Pose, type StateId } from './states'
+
+export interface RenderedEye {
+  d: string
+  matrix: string
+  alpha: number
+}
+
+export interface BotFrame {
+  bodyPath: string
+  bodyAlpha: number
+  eyes: RenderedEye[]
+  dots: DotRender[]
+  /** true = les points passent derriere le corps (particules de l'eclatement) */
+  dotsBehind: boolean
+  arcs: ArcRender[]
+  notif: { x: number; y: number; r: number } | null
+  notch: { x: number; y: number; r: number } | null
+}
+
+const lerpEye = (a: Pose['eyes'][number], b: Pose['eyes'][number], t: number) => ({
+  w: lerp(a.w, b.w, t),
+  h: lerp(a.h, b.h, t),
+  open: lerp(a.open, b.open, t)
+})
+
+/** Interpolation de deux poses. Le decor se croise en opacite, pas en geometrie. */
+function blendPose(a: Pose, b: Pose, t: number): Pose {
+  const out = 1 - t
+  return {
+    sil: blend(a.sil, b.sil, t),
+    offX: lerp(a.offX, b.offX, t),
+    offY: lerp(a.offY, b.offY, t),
+    gaze: {
+      yaw: lerp(a.gaze.yaw, b.gaze.yaw, t),
+      pitch: lerp(a.gaze.pitch, b.gaze.pitch, t),
+      roll: lerp(a.gaze.roll, b.gaze.roll, t)
+    },
+    split: lerp(a.split, b.split, t),
+    eyes: [lerpEye(a.eyes[0], b.eyes[0], t), lerpEye(a.eyes[1], b.eyes[1], t)],
+    eyeAlpha: lerp(a.eyeAlpha, b.eyeAlpha, t),
+    bodyAlpha: lerp(a.bodyAlpha, b.bodyAlpha, t),
+    dots: [
+      ...a.dots.map((d) => ({ ...d, opacity: d.opacity * out })),
+      ...b.dots.map((d) => ({ ...d, opacity: d.opacity * t }))
+    ],
+    arcs: [
+      ...a.arcs.map((r) => ({ ...r, id: `a${r.id}`, opacity: r.opacity * out })),
+      ...b.arcs.map((r) => ({ ...r, id: `b${r.id}`, opacity: r.opacity * t }))
+    ],
+    // la pastille appartient a un seul des deux etats, elle ne se melange pas
+    notif: t < 0.5 ? a.notif : b.notif,
+    dotsBehind: t < 0.5 ? a.dotsBehind : b.dotsBehind
+  }
+}
+
+/**
+ * Moteur sans horloge : `sample(t)` est une fonction pure du temps.
+ *
+ * Consequence pratique : pause, reprise, ralenti et saut a une date arbitraire
+ * donnent exactement la meme image, et le rendu est testable sans DOM.
+ */
+export class BotEngine {
+  /** rayon de la boule au repos, en unites de viewBox */
+  readonly scale: number
+
+  private cur: StateId
+  private prev: StateId | null = null
+  private tCur = 0
+  private tPrev = 0
+  private blinkAt = -10
+  private pts: Point[] = []
+
+  constructor(scale = 100, initial: StateId = 'idle') {
+    this.scale = scale
+    this.cur = initial
+  }
+
+  get state(): StateId {
+    return this.cur
+  }
+
+  setState(id: StateId, now: number) {
+    if (id === this.cur) return
+    this.prev = this.cur
+    this.tPrev = this.tCur
+    this.cur = id
+    this.tCur = now
+    // Dans la video, chaque changement de forme est masque par un clignement.
+    if (STATE_BY_ID.get(id)?.blinkIn) this.blinkAt = now
+  }
+
+  sample(now: number): BotFrame {
+    const R = this.scale
+    const def = STATE_BY_ID.get(this.cur)!
+    let pose = def.pose(Math.max(0, now - this.tCur))
+
+    // --- transition -------------------------------------------------------
+    const since = now - this.tCur
+    if (this.prev && since < def.morph) {
+      const prevDef = STATE_BY_ID.get(this.prev)!
+      const prevPose = prevDef.pose(Math.max(0, now - this.tPrev))
+      // Ease-out exponentiel : c'est la courbe mesuree sur la video. Le corps
+      // n'a pas d'overshoot (seuls la pastille et l'ouverture des yeux en ont).
+      pose = blendPose(prevPose, pose, easings.easeOutQuint(since / def.morph))
+    } else if (this.prev) {
+      this.prev = null
+    }
+
+    // --- vie au repos -----------------------------------------------------
+    const alive = pose.eyeAlpha > 0.01
+    const life = liveliness(now, { wander: alive ? 1 : 0, blink: alive })
+
+    const gaze = {
+      yaw: pose.gaze.yaw + life.dYaw,
+      pitch: pose.gaze.pitch + life.dPitch,
+      roll: pose.gaze.roll + life.dRoll
+    }
+
+    // clignement declenche par le changement d'etat, en plus du calendrier
+    const forced = clamp((now - this.blinkAt) / 0.2)
+    const forcedLid = forced < 1 ? Math.abs(forced * 2 - 1) : 1
+    const lid = Math.min(life.lid, forcedLid)
+
+    const offX = pose.offX + life.driftX
+    const offY = pose.offY + life.driftY
+
+    // --- corps ------------------------------------------------------------
+    const sil: Silhouette = {
+      ...pose.sil,
+      cx: pose.sil.cx + offX,
+      cy: pose.sil.cy + offY,
+      sy: pose.sil.sy * life.breath
+    }
+    const bodyPath = closedPath(toPoints(sil, R, this.pts))
+
+    // --- yeux -------------------------------------------------------------
+    const eyes: RenderedEye[] = []
+    if (pose.eyeAlpha > 0.01) {
+      const poses = eyePoses(gaze, R, pose.split)
+      for (let i = 0; i < 2; i++) {
+        const e = poses[i]!
+        if (e.depth <= 0.02) continue
+        const cfg = pose.eyes[i]!
+        // Le clignement s'applique APRES la matrice tangente : c'est un
+        // ecrasement vertical a l'ecran, pas le long de l'axe de la gelule.
+        const k = blinkScale(Math.min(lid, cfg.open))
+        eyes.push({
+          d: capsulePath(cfg.w * R, cfg.h * R),
+          matrix: `matrix(${r2(e.a)},${r2(e.b * k)},${r2(e.c)},${r2(e.d * k)},${r2(e.x + offX * R)},${r2(e.y + offY * R)})`,
+          alpha: pose.eyeAlpha * clamp(e.depth / 0.12)
+        })
+      }
+    }
+
+    // --- decor ------------------------------------------------------------
+    const dots = pose.dots
+      .filter((p) => p.opacity > 0.01 && p.r > 0.0005)
+      .map((p) => ({ ...p, x: (p.x + offX) * R, y: (p.y + offY) * R, r: p.r * R }))
+
+    const notif = pose.notif
+      ? { x: (pose.notif.x + offX) * R, y: (pose.notif.y + offY) * R, r: pose.notif.r * R }
+      : null
+    const notch = pose.notif
+      ? { x: (pose.notif.x + offX) * R, y: (pose.notif.y + offY) * R, r: pose.notif.notch * R }
+      : null
+
+    return {
+      bodyPath,
+      bodyAlpha: pose.bodyAlpha,
+      eyes,
+      dots,
+      dotsBehind: pose.dotsBehind,
+      // Les etats declarent des arcs en unites de rayon de boule ; le moteur
+      // est le seul a connaitre l'echelle du viewBox, donc c'est lui qui trace.
+      arcs: pose.arcs
+        .filter((a) => a.opacity > 0.01)
+        .map((a) => arcRender(a.seed, a.t, R, a.id, a.opacity)),
+      notif,
+      notch
+    }
+  }
+}
+
+export { STATES }
