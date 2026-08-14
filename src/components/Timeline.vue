@@ -34,11 +34,13 @@ const playing = defineModel<boolean>('playing', { required: true })
  * jamais le montage, seulement la loupe qu'on pose dessus.
  */
 const BASE_SCALE = 44
-// le plus petit cran fait tenir le cycle de reference entier dans la piste
-const ZOOMS = [0.5, 0.7, 1, 1.4, 2]
-const zoom = ref(2)
+// bornes de la loupe : au plus petit, le cycle de reference entier tient dans
+// la piste ; au plus grand, une carte reste manipulable sans devenir un mur
+const MIN_ZOOM = 0.45
+const MAX_ZOOM = 2.4
+const zoom = ref(1)
 
-const scale = computed(() => BASE_SCALE * ZOOMS[zoom.value]!)
+const scale = computed(() => BASE_SCALE * zoom.value)
 const cycle = computed(() => cycles.value.find((c) => c.id === activeId.value) ?? cycles.value[0]!)
 const blocks = computed(() => cycle.value.blocks)
 const editable = computed(() => !cycle.value.locked)
@@ -78,14 +80,51 @@ function onScroll() {
   }
 }
 
-/** La molette verticale fait defiler la piste : elle n'a rien a faire defiler d'autre. */
+/**
+ * Change la loupe en gardant sous le pointeur la seconde qui y etait deja :
+ * sans ca, zoomer sur une carte precise la fait fuir hors de l'ecran.
+ */
+function zoomAt(next: number, clientX?: number) {
+  const clamped = Math.min(MAX_ZOOM, Math.max(MIN_ZOOM, next))
+  if (clamped === zoom.value) return
+  const el = track.value
+  if (!el || clientX === undefined) {
+    zoom.value = clamped
+    return
+  }
+  const x = clientX - el.getBoundingClientRect().left
+  const seconde = (el.scrollLeft + x) / scale.value
+  zoom.value = clamped
+  nextTick(() => {
+    el.scrollLeft = seconde * scale.value - x
+    onScroll()
+  })
+}
+
+/**
+ * Molette et trackpad sur la piste :
+ * - pincement du trackpad (le navigateur l'annonce comme une molette + `ctrl`,
+ *   c'est la convention) ou `ctrl`/`cmd` + molette → loupe ;
+ * - deux doigts a l'horizontale → defilement, c'est deja `deltaX` ;
+ * - molette de souris, qui n'a pas d'axe horizontal → on renvoie son `deltaY`
+ *   sur le defilement de la piste, sinon elle ne servirait a rien ici.
+ * `deltaMode` vaut 1 quand le systeme compte en lignes et pas en pixels (des
+ * souris sous Firefox) : sans le facteur, le geste serait quinze fois trop lent.
+ */
 function onWheel(e: WheelEvent) {
   const el = track.value
-  if (!el || el.scrollWidth <= el.clientWidth) return
+  if (!el) return
+  const unit = e.deltaMode === 1 ? 16 : 1
+  if (e.ctrlKey || e.metaKey) {
+    e.preventDefault()
+    zoomAt(zoom.value * Math.exp((-e.deltaY * unit) / 180), e.clientX)
+    return
+  }
+  if (el.scrollWidth <= el.clientWidth) return
   const d = Math.abs(e.deltaX) > Math.abs(e.deltaY) ? e.deltaX : e.deltaY
   if (!d) return
   e.preventDefault()
-  el.scrollLeft += d
+  el.scrollLeft += d * unit
 }
 
 onMounted(onScroll)
@@ -221,8 +260,10 @@ function onResizeKey(index: number, delta: number) {
   setDuration(index, blocks.value[index]!.duration + delta)
 }
 
-// La tete de lecture reste visible quand la piste deborde de la fenetre.
-watch([block, scale], () => {
+// La carte courante reste visible quand la piste deborde de la fenetre. On ne
+// regarde que le curseur : au zoom, c'est `zoomAt` qui commande le defilement,
+// et les deux se battraient pour la meme barre.
+watch(block, () => {
   const el = track.value
   if (!el) return
   const x = offsetOf(cycle.value, block.value) * scale.value
@@ -301,8 +342,8 @@ watch(activeId, () => {
             type="button"
             class="flex h-6 w-6 cursor-pointer items-center justify-center rounded-md text-[var(--muted)] transition hover:bg-black/5 hover:text-[var(--ink)] disabled:opacity-30 disabled:hover:bg-transparent"
             aria-label="Dézoomer la piste"
-            :disabled="zoom === 0"
-            @click="zoom = Math.max(0, zoom - 1)"
+            :disabled="zoom <= MIN_ZOOM"
+            @click="zoomAt(zoom / 1.3)"
           >
             <svg width="12" height="12" viewBox="0 0 12 12" aria-hidden="true">
               <path d="M2 6h8" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" />
@@ -312,8 +353,8 @@ watch(activeId, () => {
             type="button"
             class="flex h-6 w-6 cursor-pointer items-center justify-center rounded-md text-[var(--muted)] transition hover:bg-black/5 hover:text-[var(--ink)] disabled:opacity-30 disabled:hover:bg-transparent"
             aria-label="Zoomer la piste"
-            :disabled="zoom === ZOOMS.length - 1"
-            @click="zoom = Math.min(ZOOMS.length - 1, zoom + 1)"
+            :disabled="zoom >= MAX_ZOOM"
+            @click="zoomAt(zoom * 1.3)"
           >
             <svg width="12" height="12" viewBox="0 0 12 12" aria-hidden="true">
               <path
@@ -366,22 +407,21 @@ watch(activeId, () => {
                   @keydown.space.prevent="block = i"
                 >
                   <!-- la miniature EST l'identite de la carte, comme la vignette
-                       d'une page : le nom ne s'affiche que s'il reste la place -->
-                  <span class="flex min-w-0 flex-1 items-center justify-center gap-1.5">
+                       d'une page : le nom n'apprendrait rien de plus, il ne
+                       reste que dans l'etiquette du bouton, pour le lecteur
+                       d'ecran -->
+                  <span class="flex min-w-0 flex-1 items-center justify-center">
                     <GrokBot
-                      v-if="width(i) > 50"
+                      v-if="width(i) > 44"
                       class="shrink-0"
                       :state="b.state"
-                      :size="34"
+                      :size="Math.min(56, Math.max(30, width(i) * 0.5))"
                       :shape="shape"
                       :color="color"
                       :expression="expression"
                       :paper="i === block ? '#ffffff' : '#f2f2f2'"
                       :frozen-at="POSES[b.state]"
                     />
-                    <span v-if="width(i) > 104" class="truncate text-xs leading-tight font-medium">
-                      {{ label(i) }}
-                    </span>
                   </span>
                   <span
                     class="flex items-baseline justify-between gap-1 text-[10px] leading-none tabular-nums"
