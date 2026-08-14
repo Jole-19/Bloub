@@ -26,11 +26,8 @@ export default {
   rail: {
     nav: 'Sections',
     customize: 'Personnaliser',
-    customizeHint: 'Forme, expression et couleur',
     animations: 'Animations',
-    animationsHint: 'Jouer et déclencher les états',
-    settings: 'Réglages',
-    settingsHint: 'Langue et à propos'
+    settings: 'Réglages'
   },
 
   panel: {
@@ -40,12 +37,17 @@ export default {
     color: 'Couleur'
   },
 
+  preview: {
+    exit: "Quitter l'aperçu",
+    /** Nom de la touche tel qu'il est grave sur le clavier de la langue. */
+    key: 'Échap'
+  },
+
   timeline: {
     play: 'Lancer la lecture',
     pause: 'Arrêter la lecture',
-    zoomIn: 'Zoomer la piste',
-    zoomOut: 'Dézoomer la piste',
     addAnimation: 'Ajouter une animation',
+    zoom: 'Zoom de la piste',
     blockAria: '{state}, {duration}',
     blockDurationAria: 'Durée de {state}, {duration}',
     blockRemoveAria: 'Retirer {state}'

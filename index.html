@@ -1,9 +1,76 @@
 <!doctype html>
+<!--
+  `lang` est reecrit au demarrage par src/i18n : la valeur ici est celle du
+  premier rendu, avant que la langue du visiteur soit connue. Les meta, elles,
+  restent en francais quoi qu'il arrive — les robots sociaux (X, Slack, Discord)
+  n'executent pas de JavaScript, donc l'apercu partage est toujours celui du
+  HTML servi. Une seule langue a choisir, autant que ce soit celle de l'auteur.
+-->
 <html lang="fr">
   <head>
+    <!-- doit tenir dans les 1024 premiers octets, donc en premier -->
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>Grok bot — morphing SVG</title>
+
+    <title>Grok bot — avatar SVG animé</title>
+    <meta
+      name="description"
+      content="Recréation en SVG animé de l'avatar du bot Grok : une forme noire qui morphe entre 14 états, relevés au pixel sur la vidéo. Sans librairie d'animation."
+    />
+
+    <!--
+      Pas de <meta name="robots" content="index, follow"> : c'est la valeur par
+      defaut, et Google la documente comme sans effet. Cette balise ne sert qu'a
+      INTERDIRE quelque chose.
+    -->
+
+    <!-- Open Graph : attribut `property`, alors que les balises X prennent `name` -->
+    <meta property="og:type" content="website" />
+    <meta property="og:title" content="Grok bot — avatar SVG animé" />
+    <meta
+      property="og:description"
+      content="Une forme noire qui morphe entre 14 états, relevés au pixel sur la vidéo de référence."
+    />
+    <meta property="og:site_name" content="Grok bot" />
+    <meta property="og:locale" content="fr_FR" />
+    <meta property="og:locale:alternate" content="en_US" />
+    <meta property="og:locale:alternate" content="zh_CN" />
+
+    <!--
+      `twitter:card` suffit : X reprend og:title, og:description et og:image.
+      Les dupliquer en twitter:* n'ajoute rien.
+    -->
+    <meta name="twitter:card" content="summary_large_image" />
+
+    <!--
+      A DECOMMENTER LE JOUR DE LA MISE EN LIGNE, avec l'URL reelle.
+      Ces trois balises exigent une URL ABSOLUE (protocole + hote) : une URL
+      relative est ignoree par les robots, et une URL inventee vaut moins que
+      pas de balise du tout. `public/og.png` est deja la, en 1200x630.
+
+      <link rel="canonical" href="https://EXEMPLE.vercel.app/" />
+      <meta property="og:url" content="https://EXEMPLE.vercel.app/" />
+      <meta property="og:image" content="https://EXEMPLE.vercel.app/og.png" />
+      <meta property="og:image:width" content="1200" />
+      <meta property="og:image:height" content="630" />
+      <meta property="og:image:alt" content="L'avatar noir du bot sur fond clair" />
+    -->
+
+    <!--
+      Le `.ico` d'abord et le SVG apres : a pertinence egale les navigateurs
+      retiennent le DERNIER, et on veut le vectoriel quand il est compris.
+      Le `.ico` reste necessaire en 2026 — Safari ne lit le SVG qu'a partir de
+      la version 26, et iOS pas du tout avant 18.7.
+    -->
+    <link rel="icon" href="/favicon.ico" sizes="32x32" />
+    <link rel="icon" href="/favicon.svg" type="image/svg+xml" />
+    <link rel="apple-touch-icon" href="/apple-touch-icon.png" />
+
+    <!-- pas de site.webmanifest : il ne sert qu'a l'installation PWA, et
+         couterait trois icones de plus pour aucun gain de referencement -->
+
+    <meta name="theme-color" content="#f9f9f9" media="(prefers-color-scheme: light)" />
+    <meta name="theme-color" content="#0a0a0c" media="(prefers-color-scheme: dark)" />
   </head>
   <body>
     <div id="app"></div>

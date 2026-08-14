@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { nextTick, onBeforeUnmount, ref, watch } from 'vue'
+import { t } from '@/i18n'
 
 /**
  * Boite de dialogue de nommage. C'est un `<dialog>` natif ouvert en modal :
@@ -76,7 +77,7 @@ onBeforeUnmount(() => el.value?.open && el.value.close())
           class="h-8 cursor-pointer rounded-lg px-3 text-xs text-[var(--muted)] transition hover:bg-black/5 hover:text-[var(--ink)]"
           @click="open = false"
         >
-          Annuler
+          {{ t('dialog.cancel') }}
         </button>
         <button
           type="submit"

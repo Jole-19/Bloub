@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { ref, watch } from 'vue'
+import { t } from '@/i18n'
 
 /**
  * Confirmation d'une action destructrice. Meme `<dialog>` natif que le nommage
@@ -47,7 +48,7 @@ function confirm() {
           class="h-8 cursor-pointer rounded-lg px-3 text-xs text-[var(--muted)] transition hover:bg-black/5 hover:text-[var(--ink)]"
           @click="open = false"
         >
-          Annuler
+          {{ t('dialog.cancel') }}
         </button>
         <button
           type="button"

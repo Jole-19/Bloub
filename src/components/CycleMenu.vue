@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { onBeforeUnmount, ref, watch } from 'vue'
 import type { Cycle } from '@/bot/cycles'
+import { nomDeCycle, t } from '@/i18n'
 
 /**
  * Choix du montage. Un `<select>` natif ne peut pas porter la ligne "Nouveau"
@@ -49,10 +50,10 @@ onBeforeUnmount(() => window.removeEventListener('pointerdown', onOutside))
       class="flex max-w-56 cursor-pointer items-center gap-1.5 rounded-lg px-2 py-1 text-left text-sm font-medium transition hover:bg-black/5"
       aria-haspopup="menu"
       :aria-expanded="open"
-      :title="current.name"
+      :title="nomDeCycle(current)"
       @click="open = !open"
     >
-      <span class="tronque">{{ current.name }}</span>
+      <span class="tronque">{{ nomDeCycle(current) }}</span>
       <svg
         width="10"
         height="10"
@@ -87,18 +88,18 @@ onBeforeUnmount(() => window.removeEventListener('pointerdown', onOutside))
           type="button"
           role="menuitem"
           class="flex min-w-0 flex-1 cursor-pointer items-center gap-2 rounded-lg px-2.5 py-1.5 text-left text-xs transition hover:bg-black/5"
-          :title="c.name"
+          :title="nomDeCycle(c)"
           @click="choose(c.id)"
         >
           <span class="w-3 shrink-0 text-[var(--ink)]">{{ c.id === activeId ? '✓' : '' }}</span>
-          <span class="tronque">{{ c.name }}</span>
+          <span class="tronque">{{ nomDeCycle(c) }}</span>
         </button>
         <!-- renommer et supprimer vivent ici : la barre n'a pas a porter deux
              boutons de plus pour une action qu'on fait une fois -->
         <button
           type="button"
           class="flex h-6 w-6 shrink-0 cursor-pointer items-center justify-center rounded-md text-[var(--muted)] opacity-0 transition group-hover/row:opacity-100 hover:bg-black/5 hover:text-[var(--ink)] focus-visible:opacity-100"
-          :aria-label="`Renommer ${c.name}`"
+          :aria-label="t('cycles.menuRenameAria', { name: nomDeCycle(c) })"
           @click="((open = false), emit('rename', c.id))"
         >
           <svg width="12" height="12" viewBox="0 0 12 12" aria-hidden="true">
@@ -116,7 +117,7 @@ onBeforeUnmount(() => window.removeEventListener('pointerdown', onOutside))
           v-if="cycles.length > 1"
           type="button"
           class="mr-1 flex h-6 w-6 shrink-0 cursor-pointer items-center justify-center rounded-md text-[var(--muted)] opacity-0 transition group-hover/row:opacity-100 hover:bg-black/5 hover:text-[var(--danger)] focus-visible:opacity-100"
-          :aria-label="`Supprimer ${c.name}`"
+          :aria-label="t('cycles.menuRemoveAria', { name: nomDeCycle(c) })"
           @click="((open = false), emit('remove', c.id))"
         >
           <svg width="13" height="13" viewBox="0 0 14 14" aria-hidden="true">
@@ -141,7 +142,7 @@ onBeforeUnmount(() => window.removeEventListener('pointerdown', onOutside))
         @click="create"
       >
         <span class="w-3 shrink-0 text-[var(--muted)]">+</span>
-        Nouveau cycle
+        {{ t('cycles.menuNew') }}
       </button>
     </div>
   </div>

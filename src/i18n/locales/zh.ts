@@ -24,11 +24,8 @@ const zh: typeof fr = {
   rail: {
     nav: '版块',
     customize: '个性化',
-    customizeHint: '形状、表情和颜色',
     animations: '动画',
-    animationsHint: '播放并触发各种状态',
-    settings: '设置',
-    settingsHint: '语言与关于'
+    settings: '设置'
   },
 
   panel: {
@@ -38,12 +35,16 @@ const zh: typeof fr = {
     color: '颜色'
   },
 
+  preview: {
+    exit: '退出预览',
+    key: 'Esc'
+  },
+
   timeline: {
     play: '开始播放',
     pause: '停止播放',
-    zoomIn: '放大轨道',
-    zoomOut: '缩小轨道',
     addAnimation: '添加动画',
+    zoom: '轨道缩放',
     blockAria: '{state}，{duration}',
     blockDurationAria: '{state} 的时长，{duration}',
     blockRemoveAria: '移除 {state}'

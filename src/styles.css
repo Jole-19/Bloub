@@ -87,6 +87,76 @@ body,
   }
 }
 
+/*
+ * Deplacement de l'avatar d'une vue a l'autre.
+ *
+ * La scene est une grille de trois colonnes : panneau gauche, avatar, panneau
+ * droit. Une seule des deux colonnes de panneau a une largeur a la fois, et
+ * c'est l'INTERPOLATION DE CES LARGEURS qui deplace l'avatar — les pistes de
+ * grille s'animent, alors que `order` et `flex-direction` non. D'ou cette
+ * grille plutot qu'une inversion de sens du conteneur, et d'ou son ecriture
+ * ici : les deux etats doivent etre des valeurs litterales pour que la
+ * transition ait de quoi interpoler.
+ *
+ * Les gouttieres restent constantes dans les deux etats : la colonne de
+ * l'avatar garde donc exactement la meme largeur, et son centre se decale de la
+ * largeur d'un panneau, ni plus ni moins.
+ *
+ * En dessous de 64rem la grille n'existe pas : tout s'empile, et il n'y a plus
+ * de glissement a animer.
+ */
+@media (width >= 64rem) {
+  .scene {
+    display: grid;
+    grid-template-columns: 0 minmax(0, 1fr) 20rem;
+    column-gap: 2.5rem;
+    transition: grid-template-columns 0.55s cubic-bezier(0.22, 1, 0.36, 1);
+  }
+
+  .scene--gauche {
+    grid-template-columns: 20rem minmax(0, 1fr) 0;
+  }
+
+  .scene__gauche {
+    grid-column: 1;
+  }
+
+  .scene__avatar {
+    grid-column: 2;
+  }
+
+  .scene__droite {
+    grid-column: 3;
+  }
+
+  /*
+   * Un panneau dans une colonne de largeur nulle doit disparaitre sans elargir
+   * sa piste : `min-width: 0` l'empeche de reclamer la largeur de son contenu,
+   * `overflow: hidden` coupe ce qui depasse pendant le glissement.
+   */
+  .panneau {
+    min-width: 0;
+    overflow: hidden;
+    opacity: 0;
+    transition: opacity 0.3s ease-out;
+  }
+
+  .panneau--ouvert {
+    opacity: 1;
+    /* le contenu n'apparait qu'une fois la place faite, sinon il se lit pendant
+       qu'il est encore ecrase */
+    transition: opacity 0.35s ease-out 0.2s;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .scene,
+  .panneau,
+  .panneau--ouvert {
+    transition: none;
+  }
+}
+
 body {
   margin: 0;
   background: var(--paper);

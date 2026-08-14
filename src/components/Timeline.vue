@@ -647,7 +647,7 @@ watch(block, () => {
                   ref="addButton"
                   type="button"
                   class="flex h-full w-full cursor-pointer items-center justify-center rounded-lg border-2 border-dashed border-[var(--line)] text-lg leading-none text-[var(--muted)] transition hover:border-[var(--muted)] hover:text-[var(--ink)]"
-                  aria-label="Ajouter une animation"
+                  :aria-label="t('timeline.addAnimation')"
                   aria-haspopup="menu"
                   @click="openPicker"
                 >
@@ -740,9 +740,9 @@ watch(block, () => {
     <NameDialog
       v-model:open="dialogOpen"
       v-model:value="nameDraft"
-      :title="naming?.mode === 'rename' ? 'Renommer le cycle' : 'Nouveau cycle'"
-      label="Nom du cycle"
-      :submit-label="naming?.mode === 'rename' ? 'Renommer' : 'Créer'"
+      :title="naming?.mode === 'rename' ? t('dialog.nameRenameTitle') : t('dialog.nameCreateTitle')"
+      :label="t('dialog.nameField')"
+      :submit-label="naming?.mode === 'rename' ? t('dialog.nameRename') : t('dialog.nameCreate')"
       @submit="onNamed"
     />
 
@@ -764,7 +764,7 @@ watch(block, () => {
         <BotTile
           v-for="s in PALETTE"
           :key="s.id"
-          :label="s.label"
+          :label="t(`states.${s.id}`)"
           :selected="false"
           :state="s.id"
           :shape="shape"
@@ -778,9 +778,9 @@ watch(block, () => {
 
     <ConfirmDialog
       v-model:open="confirmOpen"
-      :title="`Supprimer « ${removing?.name} » ?`"
+      :title="t('dialog.removeTitle', { name: removing ? nomDeCycle(removing) : '' })"
       :detail="removingDetail"
-      confirm-label="Supprimer"
+      :confirm-label="t('dialog.removeConfirm')"
       @confirm="onRemove"
     />
   </div>

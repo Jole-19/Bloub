@@ -3,8 +3,10 @@ import { computed, ref, watch } from 'vue'
 import BotTile from '@/components/BotTile.vue'
 import Customizer from '@/components/Customizer.vue'
 import GrokBot from '@/components/GrokBot.vue'
+import Settings from '@/components/Settings.vue'
 import SideRail, { type ViewId } from '@/components/SideRail.vue'
 import Timeline from '@/components/Timeline.vue'
+import { t } from '@/i18n'
 import { blockAt, blocksWith, defaultCycle, makeBlock, parseCycles, type Cycle } from '@/bot/cycles'
 import { DEFAULT_EXPRESSION, EXPRESSION_BY_ID } from '@/bot/expressions'
 import { COLOR_BY_ID, DEFAULT_COLOR, DEFAULT_SHAPE, SHAPE_BY_ID } from '@/bot/skins'
@@ -146,32 +148,38 @@ window.addEventListener('hashchange', () => {
 })
 
 /**
- * En personnalisation on regarde la forme, pas la sequence : on retombe sur
- * l'etat de repos et on suspend l'enchainement. L'horloge, elle, continue de
- * tourner — le regard derive et les yeux clignent toujours, ce qui garde le bot
- * vivant sans empecher de juger la forme.
+ * Hors du lecteur on ne regarde pas la sequence : on retombe sur l'etat de repos
+ * et on suspend l'enchainement. L'horloge, elle, continue de tourner — le regard
+ * derive et les yeux clignent toujours, ce qui garde le bot vivant sans empecher
+ * de juger la forme, et c'est aussi ce qui laisse le regard suivre le curseur
+ * dans les reglages.
  */
 let resume = initial.playing
 let resumeBlock = block.value
 
 /**
- * En personnalisation le lecteur joue un montage d'un seul bloc au repos : le
- * cycle de l'utilisateur peut tres bien ne contenir aucun etat au repos, et la
- * forme choisie ne se voit que la (`baseBody`).
+ * Hors du lecteur, le montage joue est un unique bloc au repos : le cycle de
+ * l'utilisateur peut tres bien ne contenir aucun etat au repos, et c'est le seul
+ * ou la forme choisie se voit (`baseBody`).
  */
 const REST = [makeBlock('idle')]
-const played = computed(() => (view.value === 'personnaliser' ? REST : cycle.value.blocks))
+const played = computed(() => (view.value === 'animations' ? cycle.value.blocks : REST))
 
 watch(view, (now, before) => {
-  if (now === 'personnaliser') {
-    resume = playing.value
-    resumeBlock = block.value
+  if (now !== 'animations') {
+    // On ne memorise la position qu'en QUITTANT le lecteur : passer de la
+    // personnalisation aux reglages ne doit pas ecraser la position gardee par
+    // le zero qu'on vient d'y poser.
+    if (before === 'animations') {
+      resume = playing.value
+      resumeBlock = block.value
+    }
     playing.value = false
     block.value = 0
-  } else if (before === 'personnaliser') {
-    playing.value = resume
-    block.value = resumeBlock
+    return
   }
+  playing.value = resume
+  block.value = resumeBlock
 })
 
 /* ------------------------------------------------------------------- skins */
@@ -211,7 +219,7 @@ function onSeek(t: number) {
 <template>
   <div v-if="gallery" class="p-5">
     <a class="text-xs text-[var(--muted)] underline underline-offset-2" href="#">
-      Retour au lecteur
+      {{ t('gallery.back') }}
     </a>
     <div class="mt-4 grid grid-cols-[repeat(auto-fill,minmax(210px,1fr))] gap-3">
       <figure v-for="s in order" :key="s.id" class="flex flex-col items-center">
@@ -223,7 +231,7 @@ function onSeek(t: number) {
           :expression="expression"
           :frozen-at="POSES[s.id]"
         />
-        <figcaption class="text-xs text-[var(--muted)]">{{ s.label }}</figcaption>
+        <figcaption class="text-xs text-[var(--muted)]">{{ t(`states.${s.id}`) }}</figcaption>
       </figure>
     </div>
   </div>
@@ -231,7 +239,7 @@ function onSeek(t: number) {
   <template v-else>
     <!-- titre de structure : la page n'affiche volontairement aucun titre, mais
          un document sans h1 n'est pas navigable au lecteur d'ecran -->
-    <h1 class="sr-only">Grok bot</h1>
+    <h1 class="sr-only">{{ t('app.name') }}</h1>
     <SideRail v-if="!preview" v-model="view" />
 
     <!-- Sortie d'apercu : le seul element qui reste a l'ecran avec l'avatar. -->
@@ -241,23 +249,40 @@ function onSeek(t: number) {
       class="fixed top-5 right-5 z-30 flex cursor-pointer items-center gap-1.5 rounded-lg bg-white/80 px-2.5 py-1.5 text-xs text-[var(--muted)] shadow-sm backdrop-blur transition hover:text-[var(--ink)]"
       @click="preview = false"
     >
-      Quitter l'aperçu
-      <kbd class="rounded bg-black/5 px-1 py-0.5 text-[10px]">Échap</kbd>
+      {{ t('preview.exit') }}
+      <kbd class="rounded bg-black/5 px-1 py-0.5 text-[10px]">{{ t('preview.key') }}</kbd>
     </button>
 
     <!-- La place de la barre de montage est reservee dans les deux vues : elle
          est fixee en bas, donc sans cette reserve la scene se recentrerait en
          passant a la personnalisation et l'avatar sauterait d'un cran. -->
     <div
-      class="flex min-h-full items-stretch justify-center gap-10 p-8 max-lg:flex-col"
-      :class="preview ? '' : 'pb-[calc(var(--timeline)_+_1rem)] pl-24'"
+      class="scene min-h-full items-stretch justify-center p-8 max-lg:flex max-lg:flex-col max-lg:gap-10"
+      :class="[
+        preview ? '' : 'pb-[calc(var(--timeline)_+_1rem)] pl-24',
+        view === 'reglages' && 'scene--gauche'
+      ]"
     >
+      <!--
+        Panneau des reglages, colonne de GAUCHE : c'est l'ouverture de cette
+        colonne qui pousse l'avatar vers la droite. Il reste monte quand la vue
+        change, sinon il n'y aurait rien a faire glisser — c'est la largeur de sa
+        colonne qui l'escamote, pas un `v-if`.
+      -->
+      <aside
+        v-if="!preview"
+        class="panneau scene__gauche w-full lg:w-80 lg:shrink-0"
+        :class="view === 'reglages' ? 'panneau--ouvert max-lg:order-2' : 'max-lg:hidden'"
+      >
+        <Settings />
+      </aside>
+
       <!-- scene. Sa hauteur ne doit pas dependre du panneau de droite : etiree
            (items-stretch), elle suivait le panneau de personnalisation, plus
            haut que la grille d'animations, et l'avatar centre changeait de
            place d'un onglet a l'autre. -->
       <main
-        class="flex flex-1 items-center justify-center lg:self-start"
+        class="scene__avatar flex flex-1 items-center justify-center max-lg:order-1 lg:self-start"
         :class="
           preview
             ? 'lg:min-h-[calc(100dvh_-_4rem)]'
@@ -287,6 +312,7 @@ function onSeek(t: number) {
             :shape="shape"
             :color="color"
             :expression="expression"
+            :follow="view === 'reglages'"
           />
         </div>
       </main>
@@ -294,15 +320,19 @@ function onSeek(t: number) {
       <!-- largeur fixe, identique dans les deux vues : sinon la scene se decale
            au changement d'onglet. w-80 est la contrainte du personnalisateur
            (grille de 4 vignettes), le panneau d'animations s'y adapte. -->
-      <aside v-if="!preview" class="w-full lg:w-80 lg:shrink-0">
+      <aside
+        v-if="!preview"
+        class="panneau scene__droite w-full lg:w-80 lg:shrink-0"
+        :class="view === 'reglages' ? 'max-lg:hidden' : 'panneau--ouvert max-lg:order-2'"
+      >
         <!-- palette : une vignette s'ajoute a la fin du montage -->
         <template v-if="view === 'animations'">
-          <h2 class="text-sm font-semibold">Animations</h2>
+          <h2 class="text-sm font-semibold">{{ t('panel.animations') }}</h2>
           <div class="mt-2 grid grid-cols-4 gap-1.5">
             <BotTile
               v-for="s in order"
               :key="s.id"
-              :label="s.label"
+              :label="t(`states.${s.id}`)"
               :selected="s.id === state"
               :state="s.id"
               :shape="shape"

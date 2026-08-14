@@ -205,3 +205,86 @@ describe('etats', () => {
     expect(rayon(0.45)).toBeGreaterThan(0)
   })
 })
+
+describe('regard qui suit le pointeur', () => {
+  /** Abscisse de l'oeil interieur, en px de viewBox. */
+  const oeilX = (e: BotEngine, t: number) => +/matrix\([^,]+,[^,]+,[^,]+,[^,]+,(-?[\d.]+)/
+    .exec(e.sample(t).eyes[0]!.matrix)![1]!
+
+  /** Amplitude de son deplacement sur une plage de temps. */
+  function amplitude(e: BotEngine, de: number, a: number) {
+    const xs: number[] = []
+    for (let t = de; t <= a; t += 0.1) xs.push(oeilX(e, t))
+    return Math.max(...xs) - Math.min(...xs)
+  }
+
+  it('ne touche pas au regard tant qu aucune cible n est posee', () => {
+    const nu = new BotEngine(100, 'idle')
+    const vise = new BotEngine(100, 'idle')
+    vise.setLook(null, 0)
+    expect(vise.sample(1).eyes[0]!.matrix).toBe(nu.sample(1).eyes[0]!.matrix)
+  })
+
+  it('porte le regard du cote de la cible', () => {
+    const centre = new BotEngine(100, 'idle')
+    const droite = new BotEngine(100, 'idle')
+    const gauche = new BotEngine(100, 'idle')
+    droite.setLook({ yaw: 20, pitch: 0, mix: 1 }, 0)
+    gauche.setLook({ yaw: -20, pitch: 0, mix: 1 }, 0)
+    // apres le rattrapage, l oeil est franchement decale, et des deux cotes
+    const t = 1 + BotEngine.LOOK_MORPH
+    expect(oeilX(droite, t)).toBeGreaterThan(oeilX(centre, t) + 10)
+    expect(oeilX(gauche, t)).toBeLessThan(oeilX(centre, t) - 10)
+  })
+
+  it('garde les deux yeux visibles aux amplitudes extremes', () => {
+    // au-dela, l oeil exterieur passe derriere le limbe de la sphere et le
+    // moteur le retire : la butee de GrokBot.vue doit rester en dessous
+    for (const yaw of [-20, 0, 20]) {
+      for (const pitch of [-13, 0, 13]) {
+        const e = new BotEngine(100, 'idle')
+        e.setLook({ yaw, pitch, mix: 1 }, 0)
+        expect(e.sample(1).eyes, `yaw ${yaw} pitch ${pitch}`).toHaveLength(2)
+      }
+    }
+  })
+
+  it('eteint la derive automatique quand le pointeur commande', () => {
+    const libre = new BotEngine(100, 'idle')
+    const tenu = new BotEngine(100, 'idle')
+    tenu.setLook({ yaw: 0, pitch: 0, mix: 1 }, 0)
+
+    // Meme cible que le regard de repos (ecart nul) : ce qui reste de mouvement
+    // n'est donc QUE la derive. Elle doit s'etre eteinte, a ceci pres que le
+    // flottement du corps (±0,006 rayon, `float`) n'est pas concerne.
+    expect(amplitude(tenu, 1, 8)).toBeLessThan(2)
+    expect(amplitude(libre, 1, 8)).toBeGreaterThan(5 * amplitude(tenu, 1, 8))
+  })
+
+  it('revient au regard de l etat quand la cible est relachee', () => {
+    const nu = new BotEngine(100, 'idle')
+    const e = new BotEngine(100, 'idle')
+    e.setLook({ yaw: 20, pitch: -10, mix: 1 }, 0)
+    e.sample(1)
+    e.setLook(null, 1)
+    // le retour est progressif, puis complet
+    expect(oeilX(e, 1.05)).not.toBeCloseTo(oeilX(nu, 1.05), 1)
+    const fini = 1 + BotEngine.LOOK_MORPH
+    expect(oeilX(e, fini)).toBeCloseTo(oeilX(nu, fini), 5)
+  })
+
+  it('reste une fonction pure du temps pendant le rattrapage', () => {
+    const e = new BotEngine(100, 'idle')
+    e.setLook({ yaw: 18, pitch: -8, mix: 1 }, 1)
+    const milieu = e.sample(1.1).eyes[0]!.matrix
+    // relire une date passee doit redonner exactement la meme image
+    e.sample(3)
+    expect(e.sample(1.1).eyes[0]!.matrix).toBe(milieu)
+  })
+
+  it('laisse la derive intacte sur les vignettes, qui ne visent jamais', () => {
+    // une vignette figee n appelle pas setLook : son regard doit deriver comme avant
+    const e = new BotEngine(100, 'idle')
+    expect(amplitude(e, 0, 6)).toBeGreaterThan(4)
+  })
+})

@@ -1,14 +1,20 @@
 <script setup lang="ts">
-import { ref } from 'vue'
+import { computed, ref } from 'vue'
+import { t } from '@/i18n'
 
-export type ViewId = 'animations' | 'personnaliser'
+export type ViewId = 'animations' | 'personnaliser' | 'reglages'
 
 const view = defineModel<ViewId>({ default: 'personnaliser' })
 
-const ITEMS: Array<{ id: ViewId; label: string }> = [
-  { id: 'personnaliser', label: 'Personnaliser' },
-  { id: 'animations', label: 'Animations' }
-]
+/**
+ * `computed` et pas une constante de module : les libelles changent avec la
+ * langue, et un tableau construit a l'import resterait dans celle du demarrage.
+ */
+const ITEMS = computed<Array<{ id: ViewId; label: string }>>(() => [
+  { id: 'personnaliser', label: t('rail.customize') },
+  { id: 'animations', label: t('rail.animations') },
+  { id: 'reglages', label: t('rail.settings') }
+])
 
 /**
  * Icone dont l'infobulle est masquee jusqu'a ce que le pointeur reparte : une
@@ -23,7 +29,7 @@ const muted = ref<ViewId | null>(null)
 <template>
   <nav
     class="fixed top-[calc(50%_-_var(--timeline)_/_2)] left-4 z-20 -translate-y-1/2 rounded-2xl border border-[var(--line)] bg-white/85 p-1.5 shadow-sm backdrop-blur"
-    aria-label="Sections"
+    :aria-label="t('rail.nav')"
   >
     <ul class="flex flex-col gap-1">
       <li
@@ -54,6 +60,32 @@ const muted = ref<ViewId | null>(null)
             aria-hidden="true"
           >
             <path d="M6 3.6 16 10 6 16.4z" fill="currentColor" />
+          </svg>
+          <!--
+            Reglages : un engrenage. Les dents sont un seul trace repete par
+            rotation autour du centre, plutot qu'un chemin decrivant les huit :
+            c'est la meme figure, en dix fois moins de coordonnees.
+          -->
+          <svg
+            v-else-if="item.id === 'reglages'"
+            width="18"
+            height="18"
+            viewBox="0 0 20 20"
+            aria-hidden="true"
+          >
+            <g stroke="currentColor" stroke-width="1.6" stroke-linecap="round" fill="none">
+              <circle cx="10" cy="10" r="2.4" />
+              <circle cx="10" cy="10" r="6.2" />
+              <!-- les dents mordent SUR l'anneau (rayon 6,2 a 8,4) et ne partent
+                   pas du centre : des rayons partant du milieu donnent un
+                   soleil, pas un engrenage -->
+              <path
+                v-for="a in [0, 45, 90, 135]"
+                :key="a"
+                d="M10 1.6v2.2M10 16.2v2.2"
+                :transform="`rotate(${a} 10 10)`"
+              />
+            </g>
           </svg>
           <!-- Personnaliser : une palette -->
           <svg v-else width="18" height="18" viewBox="0 0 20 20" aria-hidden="true">

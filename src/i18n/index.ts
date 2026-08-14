@@ -1,4 +1,5 @@
 import { computed, ref, watchEffect } from 'vue'
+import { formePlurielle, interpoler } from './format'
 import { choisirLangue, estLangue, type Langue, tagDe } from './langues'
 import fr from './locales/fr'
 import en from './locales/en'
@@ -64,14 +65,11 @@ watchEffect(() => {
 /** Les formateurs sont chers a construire et relus a chaque image de la piste. */
 const formateurs = new Map<string, Intl.NumberFormat>()
 
-function formateur(decimales: number): Intl.NumberFormat {
-  const memo = `${tag.value}:${decimales}`
+function formateur(cle: string, options: Intl.NumberFormatOptions): Intl.NumberFormat {
+  const memo = `${tag.value}:${cle}`
   let f = formateurs.get(memo)
   if (!f) {
-    f = new Intl.NumberFormat(tag.value, {
-      minimumFractionDigits: decimales,
-      maximumFractionDigits: decimales
-    })
+    f = new Intl.NumberFormat(tag.value, options)
     formateurs.set(memo, f)
   }
   return f
@@ -84,22 +82,26 @@ function formateur(decimales: number): Intl.NumberFormat {
  * quittait le francais.
  */
 export function nombre(valeur: number, decimales = 0): string {
-  return formateur(decimales).format(valeur)
+  return formateur(`n${decimales}`, {
+    minimumFractionDigits: decimales,
+    maximumFractionDigits: decimales
+  }).format(valeur)
 }
 
-function interpoler(texte: string, valeurs?: Record<string, string | number>): string {
-  if (!valeurs) return texte
-  let sortie = texte
-  for (const [nom, valeur] of Object.entries(valeurs)) {
-    sortie = sortie.replaceAll(`{${nom}}`, String(valeur))
-  }
-  return sortie
+/**
+ * Pourcentage, depuis une fraction. Le francais insere une espace insecable
+ * avant le signe, l'anglais et le chinois le collent — `Intl` connait la regle,
+ * la concatenation non.
+ */
+export function pourcentage(fraction: number): string {
+  return formateur('%', { style: 'percent', maximumFractionDigits: 0 }).format(fraction)
 }
 
 function brut(cle: Cle): string {
-  return cle
+  const noeud = cle
     .split('.')
-    .reduce<unknown>((noeud, k) => (noeud as Record<string, unknown>)[k], dictionnaire.value) as string
+    .reduce<unknown>((n, k) => (n as Record<string, unknown>)[k], dictionnaire.value)
+  return noeud as string
 }
 
 /** `t('panel.shape')`, `t('cycles.menuRenameAria', { name })`. */
@@ -107,16 +109,9 @@ export function t(cle: Cle, valeurs?: Record<string, string | number>): string {
   return interpoler(brut(cle), valeurs)
 }
 
-/**
- * Pluriel. Les formes sont separees par ` | ` dans le dictionnaire, dans l'ordre
- * singulier puis pluriel, et c'est `Intl.PluralRules` qui tranche — le francais
- * compte 0 comme un singulier, l'anglais non, et le chinois n'a qu'une forme
- * (une seule forme ecrite suffit alors, sans separateur).
- */
+/** Pluriel : `n` est toujours disponible comme `{n}` dans le gabarit. */
 export function pluriel(cle: Cle, n: number, valeurs?: Record<string, string | number>): string {
-  const formes = brut(cle).split(' | ')
-  const index = new Intl.PluralRules(tag.value).select(n) === 'one' ? 0 : 1
-  return interpoler(formes[index] ?? formes[0]!, { n, ...valeurs })
+  return interpoler(formePlurielle(brut(cle), n, tag.value), { n, ...valeurs })
 }
 
 /**

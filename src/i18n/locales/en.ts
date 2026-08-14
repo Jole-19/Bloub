@@ -19,11 +19,8 @@ const en: typeof fr = {
   rail: {
     nav: 'Sections',
     customize: 'Customise',
-    customizeHint: 'Shape, expression and colour',
     animations: 'Animations',
-    animationsHint: 'Play and trigger the states',
-    settings: 'Settings',
-    settingsHint: 'Language and about'
+    settings: 'Settings'
   },
 
   panel: {
@@ -33,12 +30,16 @@ const en: typeof fr = {
     color: 'Colour'
   },
 
+  preview: {
+    exit: 'Exit preview',
+    key: 'Esc'
+  },
+
   timeline: {
     play: 'Start playback',
     pause: 'Stop playback',
-    zoomIn: 'Zoom in on the track',
-    zoomOut: 'Zoom out of the track',
     addAnimation: 'Add an animation',
+    zoom: 'Track zoom',
     blockAria: '{state}, {duration}',
     blockDurationAria: 'Duration of {state}, {duration}',
     blockRemoveAria: 'Remove {state}'
