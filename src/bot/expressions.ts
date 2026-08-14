@@ -115,12 +115,14 @@ export const EXPRESSIONS: BotExpression[] = [
     eyes: [eye(0.21, 0.4), eye(0.22, 0.15)]
   },
   {
-    // asymétrique sur les deux axes : tailles ET inclinaisons dépareillées
+    // asymétrique sur les deux axes : tailles ET inclinaisons dépareillées.
+    // L'œil plissé est volontairement plat (rapport 1,6) : à un rapport proche
+    // de 1 il serait rond, et son inclinaison ne se verrait pas.
     id: 'confus',
     label: 'Confus',
     gaze: { yaw: -14, pitch: 3, roll: 8 },
     split: 16.5,
-    eyes: [eye(0.2, 0.44, -18), eye(0.26, 0.22, 12)]
+    eyes: [eye(0.2, 0.44, -18), eye(0.28, 0.17, 14)]
   },
   {
     // la tête penche : c'est le roulis qui porte la curiosité
