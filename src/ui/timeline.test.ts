@@ -1,0 +1,72 @@
+import { describe, expect, it } from 'vitest'
+import { BASE_SCALE, clampZoom, graduation, MAX_ZOOM, MIN_ZOOM, mmss, seconds, ticksFor } from './timeline'
+
+describe('mise en forme', () => {
+  it('ecrit le temps en minutes et secondes', () => {
+    expect(mmss(0)).toBe('0:00')
+    expect(mmss(4.9)).toBe('0:04')
+    expect(mmss(65)).toBe('1:05')
+    // une date negative n'existe pas dans un montage
+    expect(mmss(-3)).toBe('0:00')
+  })
+
+  it('ecrit les durees a la francaise', () => {
+    expect(seconds(2.4)).toBe('2,4 s')
+    expect(seconds(2)).toBe('2,0 s')
+  })
+
+  it('abrege les graduations', () => {
+    expect(graduation(10)).toBe('10s')
+    expect(graduation(0.5)).toBe('0,5s')
+  })
+})
+
+describe('graduation de la regle', () => {
+  it('espace les nombres d au moins 52 px', () => {
+    for (const zoom of [MIN_ZOOM, 1, MAX_ZOOM]) {
+      const scale = BASE_SCALE * zoom
+      const majeurs = ticksFor(60, scale).filter((t) => t.major)
+      const ecart = (majeurs[1]!.t - majeurs[0]!.t) * scale
+      expect(ecart).toBeGreaterThanOrEqual(52)
+    }
+  })
+
+  it('elargit le pas quand on dezoome', () => {
+    const pas = (scale: number) => {
+      const majeurs = ticksFor(60, scale).filter((t) => t.major)
+      return majeurs[1]!.t - majeurs[0]!.t
+    }
+    expect(pas(BASE_SCALE * MIN_ZOOM)).toBeGreaterThan(pas(BASE_SCALE * MAX_ZOOM))
+  })
+
+  it('commence a zero et ne depasse pas la duree', () => {
+    const reperes = ticksFor(10, BASE_SCALE)
+    expect(reperes[0]).toEqual({ t: 0, major: true })
+    expect(reperes[reperes.length - 1]!.t).toBeLessThanOrEqual(10)
+  })
+
+  it('ne pose des reperes intermediaires que s ils sont lisibles', () => {
+    // quelle que soit l echelle, deux reperes voisins gardent 7 px entre eux
+    for (const scale of [0.5, 8, 20, BASE_SCALE, 106]) {
+      const reperes = ticksFor(60, scale)
+      const ecart = (reperes[1]!.t - reperes[0]!.t) * scale
+      expect(ecart).toBeGreaterThanOrEqual(7)
+    }
+    // a l echelle normale, il y en a
+    expect(ticksFor(10, BASE_SCALE).some((t) => !t.major)).toBe(true)
+    // tres dezoome, il n y en a plus
+    expect(ticksFor(600, 0.5).every((t) => t.major)).toBe(true)
+  })
+
+  it('ne rend pas la piste vide sur un montage minuscule', () => {
+    expect(ticksFor(0.6, BASE_SCALE).length).toBeGreaterThan(0)
+  })
+})
+
+describe('bornes de la loupe', () => {
+  it('ramene le zoom dans ses bornes', () => {
+    expect(clampZoom(0)).toBe(MIN_ZOOM)
+    expect(clampZoom(99)).toBe(MAX_ZOOM)
+    expect(clampZoom(1)).toBe(1)
+  })
+})

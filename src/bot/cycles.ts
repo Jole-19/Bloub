@@ -72,35 +72,35 @@ export function defaultCycle(): Cycle {
   }
 }
 
-export function totalDuration(cycle: Cycle): number {
-  return cycle.blocks.reduce((sum, b) => sum + b.duration, 0)
+export function totalDuration(blocks: Block[]): number {
+  return blocks.reduce((sum, b) => sum + b.duration, 0)
 }
 
-/** Date de debut d'un bloc dans le cycle. */
-export function offsetOf(cycle: Cycle, index: number): number {
+/** Date de debut d'un bloc dans le montage. */
+export function offsetOf(blocks: Block[], index: number): number {
   let acc = 0
-  for (let i = 0; i < index && i < cycle.blocks.length; i++) acc += cycle.blocks[i]!.duration
+  for (let i = 0; i < index && i < blocks.length; i++) acc += blocks[i]!.duration
   return acc
 }
 
 /**
  * Bloc joue a la date `t` et temps ecoule dedans. Au-dela du dernier bloc on
- * retombe au debut : la lecture boucle. L'appelant verifie que le cycle n'est
+ * retombe au debut : la lecture boucle. L'appelant verifie que le montage n'est
  * pas vide.
  */
-export function blockAt(cycle: Cycle, t: number): { index: number; elapsed: number } {
-  const total = totalDuration(cycle)
-  if (!cycle.blocks.length || total <= 0) return { index: 0, elapsed: 0 }
+export function blockAt(blocks: Block[], t: number): { index: number; elapsed: number } {
+  const total = totalDuration(blocks)
+  if (!blocks.length || total <= 0) return { index: 0, elapsed: 0 }
   // le modulo n'est applique que s'il sert : sur une date deja dans le cycle il
   // n'ajouterait qu'une trainee de flottants au temps ecoule
   const wrapped = t >= 0 && t < total ? t : ((t % total) + total) % total
   let acc = 0
-  for (let i = 0; i < cycle.blocks.length; i++) {
-    const end = acc + cycle.blocks[i]!.duration
+  for (let i = 0; i < blocks.length; i++) {
+    const end = acc + blocks[i]!.duration
     if (wrapped < end) return { index: i, elapsed: wrapped - acc }
     acc = end
   }
-  return { index: cycle.blocks.length - 1, elapsed: 0 }
+  return { index: blocks.length - 1, elapsed: 0 }
 }
 
 /** Ajoute une animation a la fin du montage (palette de droite ou carte « + »). */

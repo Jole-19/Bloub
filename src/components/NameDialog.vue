@@ -1,33 +1,28 @@
 <script setup lang="ts">
-import { nextTick, onBeforeUnmount, ref, watch } from 'vue'
+import { nextTick, ref, useTemplateRef, watch } from 'vue'
+import { useModalDialog } from '@/ui/useModalDialog'
 
 /**
- * Boite de dialogue de nommage. C'est un `<dialog>` natif ouvert en modal :
- * le navigateur fournit alors le piege a focus, la fermeture par Echap, le
- * retour du focus au declencheur et l'inertie du reste de la page — tout ce
- * qu'on reecrirait moins bien a la main. L'animation, elle, est dans
- * `styles.css` : elle a besoin de `@starting-style`, hors de portee des classes.
+ * Boite de dialogue de nommage. Le comportement modal vient de
+ * `useModalDialog` ; l'animation, elle, est dans `styles.css` : elle a besoin
+ * de `@starting-style`, hors de portee des classes.
  */
 const props = defineProps<{ title: string; label: string; submitLabel: string }>()
 const open = defineModel<boolean>('open', { required: true })
 const value = defineModel<string>('value', { required: true })
 const emit = defineEmits<{ submit: [name: string] }>()
 
-const el = ref<HTMLDialogElement | null>(null)
+const boite = useTemplateRef<HTMLDialogElement>('boite')
+useModalDialog(open, boite)
 const field = ref<HTMLInputElement | null>(null)
 const draft = ref('')
 
+// le nom propose arrive avec l'ouverture, et le champ s'offre deja selectionne
 watch(open, async (on) => {
-  const dialog = el.value
-  if (!dialog) return
-  if (on) {
-    draft.value = value.value
-    dialog.showModal()
-    await nextTick()
-    field.value?.select()
-  } else if (dialog.open) {
-    dialog.close()
-  }
+  if (!on) return
+  draft.value = value.value
+  await nextTick()
+  field.value?.select()
 })
 
 function submit() {
@@ -41,15 +36,13 @@ function submit() {
   open.value = false
 }
 
-// le composant peut disparaitre alors que la boite est ouverte (changement de vue)
-onBeforeUnmount(() => el.value?.open && el.value.close())
 </script>
 
 <template>
   <!-- `m-auto` remet le centrage natif de la modale : le reset de Tailwind
        passe `margin: 0` sur tout, et c'est cette marge auto qui centre -->
   <dialog
-    ref="el"
+    ref="boite"
     class="dialogue m-auto w-80 rounded-2xl bg-white p-5 text-[var(--ink)] shadow-xl"
     :aria-label="props.title"
     @close="open = false"

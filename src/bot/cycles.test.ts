@@ -91,25 +91,25 @@ describe('lecture', () => {
   }
 
   it('additionne les blocs', () => {
-    expect(totalDuration(cycle)).toBe(6)
+    expect(totalDuration(cycle.blocks)).toBe(6)
   })
 
   it('trouve le bloc joue et le temps ecoule dedans', () => {
-    expect(blockAt(cycle, 0)).toEqual({ index: 0, elapsed: 0 })
-    expect(blockAt(cycle, 1.9)).toEqual({ index: 0, elapsed: 1.9 })
+    expect(blockAt(cycle.blocks, 0)).toEqual({ index: 0, elapsed: 0 })
+    expect(blockAt(cycle.blocks, 1.9)).toEqual({ index: 0, elapsed: 1.9 })
     // la borne appartient au bloc suivant
-    expect(blockAt(cycle, 2)).toEqual({ index: 1, elapsed: 0 })
-    expect(blockAt(cycle, 3.5)).toEqual({ index: 2, elapsed: 0.5 })
+    expect(blockAt(cycle.blocks, 2)).toEqual({ index: 1, elapsed: 0 })
+    expect(blockAt(cycle.blocks, 3.5)).toEqual({ index: 2, elapsed: 0.5 })
   })
 
   it('boucle au-dela du dernier bloc', () => {
-    expect(blockAt(cycle, 6)).toEqual({ index: 0, elapsed: 0 })
-    expect(blockAt(cycle, 8)).toEqual({ index: 1, elapsed: 0 })
+    expect(blockAt(cycle.blocks, 6)).toEqual({ index: 0, elapsed: 0 })
+    expect(blockAt(cycle.blocks, 8)).toEqual({ index: 1, elapsed: 0 })
   })
 
   it('ne casse pas sur un cycle vide', () => {
-    expect(blockAt({ id: 'c2', name: 'Vide', blocks: [] }, 3)).toEqual({ index: 0, elapsed: 0 })
-    expect(totalDuration({ id: 'c2', name: 'Vide', blocks: [] })).toBe(0)
+    expect(blockAt([], 3)).toEqual({ index: 0, elapsed: 0 })
+    expect(totalDuration([])).toBe(0)
   })
 
   it('deplace un bloc sans toucher la liste d origine', () => {

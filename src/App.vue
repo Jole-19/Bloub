@@ -202,7 +202,7 @@ function addBlock(id: StateId) {
 const bot = ref<InstanceType<typeof GrokBot> | null>(null)
 
 function onSeek(t: number) {
-  const { index, elapsed: offset } = blockAt(cycle.value, t)
+  const { index, elapsed: offset } = blockAt(cycle.value.blocks, t)
   bot.value?.seek(index, offset)
 }
 
