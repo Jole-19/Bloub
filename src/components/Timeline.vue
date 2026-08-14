@@ -148,12 +148,27 @@ function onRemove() {
         :aria-label="playing ? t('timeline.pause') : t('timeline.play')"
         @click="playing = !playing"
       >
-        <svg v-if="!playing" width="15" height="15" viewBox="0 0 16 16" aria-hidden="true">
-          <path d="M4 2.5 13 8l-9 5.5z" fill="currentColor" />
+        <!--
+          Lecture / pause : Solar plein (`solar:play-bold`, `solar:pause-bold`),
+          la meme bibliotheque que la barre laterale. Traces recopies tels quels
+          depuis Iconify, comme la-bas — ne pas les redessiner. Meme taille pour
+          les deux : leurs boites font toutes deux 20 unites de haut sur 24, donc
+          les deux glyphes ont la meme hauteur optique. Le triangle est decentre
+          vers la droite dans sa boite (milieu a x = 13,45) et c'est voulu : le
+          centre de masse d'un triangle est a gauche de son cadre, le « recentrer »
+          le ferait paraitre trop a gauche.
+        -->
+        <svg v-if="!playing" width="16" height="16" viewBox="0 0 24 24" aria-hidden="true">
+          <path
+            fill="currentColor"
+            d="M21.4086 9.35258C23.5305 10.5065 23.5305 13.4935 21.4086 14.6474L8.59662 21.6145C6.53435 22.736 4 21.2763 4 18.9671L4 5.0329C4 2.72368 6.53435 1.26402 8.59661 2.38548L21.4086 9.35258Z"
+          />
         </svg>
-        <svg v-else width="15" height="15" viewBox="0 0 16 16" aria-hidden="true">
-          <rect x="3.5" y="3" width="3.2" height="10" rx="1" fill="currentColor" />
-          <rect x="9.3" y="3" width="3.2" height="10" rx="1" fill="currentColor" />
+        <svg v-else width="16" height="16" viewBox="0 0 24 24" aria-hidden="true">
+          <g fill="currentColor">
+            <path d="M2 6C2 4.11438 2 3.17157 2.58579 2.58579C3.17157 2 4.11438 2 6 2C7.88562 2 8.82843 2 9.41421 2.58579C10 3.17157 10 4.11438 10 6V18C10 19.8856 10 20.8284 9.41421 21.4142C8.82843 22 7.88562 22 6 22C4.11438 22 3.17157 22 2.58579 21.4142C2 20.8284 2 19.8856 2 18V6Z" />
+            <path d="M14 6C14 4.11438 14 3.17157 14.5858 2.58579C15.1716 2 16.1144 2 18 2C19.8856 2 20.8284 2 21.4142 2.58579C22 3.17157 22 4.11438 22 6V18C22 19.8856 22 20.8284 21.4142 21.4142C20.8284 22 19.8856 22 18 22C16.1144 22 15.1716 22 14.5858 21.4142C14 20.8284 14 19.8856 14 18V6Z" />
+          </g>
         </svg>
       </button>
       <span class="text-sm tabular-nums text-[var(--muted)]">{{ mmss(total) }}</span>
@@ -202,15 +217,21 @@ function onRemove() {
             :aria-label="t('timeline.preview')"
             @click="emit('preview')"
           >
-            <svg width="17" height="17" viewBox="0 0 20 20" aria-hidden="true">
-              <path
-                d="M1.8 10S5 5.2 10 5.2 18.2 10 18.2 10 15 14.8 10 14.8 1.8 10 1.8 10z"
-                fill="none"
-                stroke="currentColor"
-                stroke-width="1.5"
-                stroke-linejoin="round"
-              />
-              <circle cx="10" cy="10" r="2.3" fill="currentColor" />
+            <!--
+              Apercu : l'oeil plein de Solar (`solar:eye-bold`), meme
+              bibliotheque que la barre laterale. La paupiere est evidee autour
+              de la pupille (`fill-rule="evenodd"`) : le rond plein qui la
+              remplit est le second trace, ne pas fusionner les deux.
+            -->
+            <svg width="17" height="17" viewBox="0 0 24 24" aria-hidden="true">
+              <g fill="currentColor">
+                <path d="M9.75 12C9.75 10.7574 10.7574 9.75 12 9.75C13.2426 9.75 14.25 10.7574 14.25 12C14.25 13.2426 13.2426 14.25 12 14.25C10.7574 14.25 9.75 13.2426 9.75 12Z" />
+                <path
+                  fill-rule="evenodd"
+                  clip-rule="evenodd"
+                  d="M2 12C2 13.6394 2.42496 14.1915 3.27489 15.2957C4.97196 17.5004 7.81811 20 12 20C16.1819 20 19.028 17.5004 20.7251 15.2957C21.575 14.1915 22 13.6394 22 12C22 10.3606 21.575 9.80853 20.7251 8.70433C19.028 6.49956 16.1819 4 12 4C7.81811 4 4.97196 6.49956 3.27489 8.70433C2.42496 9.80853 2 10.3606 2 12ZM12 8.25C9.92893 8.25 8.25 9.92893 8.25 12C8.25 14.0711 9.92893 15.75 12 15.75C14.0711 15.75 15.75 14.0711 15.75 12C15.75 9.92893 14.0711 8.25 12 8.25Z"
+                />
+              </g>
             </svg>
           </button>
           <span
