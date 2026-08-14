@@ -115,6 +115,12 @@ const preview = ref(false)
 window.addEventListener('keydown', (e) => {
   if (e.key === 'Escape') preview.value = false
 })
+
+/** On regarde une animation : elle se lance, sinon il n'y a rien a voir. */
+function enterPreview() {
+  preview.value = true
+  playing.value = true
+}
 // Meme regle qu'au changement de vue : on ne joue pas la sequence en
 // personnalisation, sinon la forme est illisible. Le watcher ne se declenchant
 // qu'au changement, il faut l'appliquer aussi a l'initialisation.
@@ -330,7 +336,7 @@ function onSeek(t: number) {
       :color="color"
       :expression="expression"
       @seek="onSeek"
-      @preview="preview = true"
+      @preview="enterPreview"
     />
   </template>
 </template>

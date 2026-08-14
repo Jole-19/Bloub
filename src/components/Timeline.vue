@@ -694,23 +694,33 @@ watch(block, () => {
 
         <span class="h-4 w-px bg-[var(--line)]" />
 
-        <button
-          type="button"
-          class="flex cursor-pointer items-center gap-1.5 rounded-lg px-2 py-1 text-xs text-[var(--muted)] transition hover:bg-black/5 hover:text-[var(--ink)]"
-          @click="emit('preview')"
-        >
-          <svg width="13" height="13" viewBox="0 0 20 20" aria-hidden="true">
-            <path
-              d="M3.5 7.5v-4h4M16.5 7.5v-4h-4M3.5 12.5v4h4M16.5 12.5v4h-4"
-              fill="none"
-              stroke="currentColor"
-              stroke-width="1.6"
-              stroke-linecap="round"
-              stroke-linejoin="round"
-            />
-          </svg>
-          Aperçu
-        </button>
+        <!-- infobulle au survol ET au focus clavier, comme la barre laterale -->
+        <span class="group relative flex">
+          <button
+            type="button"
+            class="flex h-7 w-7 cursor-pointer items-center justify-center rounded-lg text-[var(--muted)] transition hover:bg-black/5 hover:text-[var(--ink)]"
+            aria-label="Aperçu"
+            @click="emit('preview')"
+          >
+            <svg width="17" height="17" viewBox="0 0 20 20" aria-hidden="true">
+              <path
+                d="M1.8 10S5 5.2 10 5.2 18.2 10 18.2 10 15 14.8 10 14.8 1.8 10 1.8 10z"
+                fill="none"
+                stroke="currentColor"
+                stroke-width="1.5"
+                stroke-linejoin="round"
+              />
+              <circle cx="10" cy="10" r="2.3" fill="currentColor" />
+            </svg>
+          </button>
+          <span
+            class="pointer-events-none absolute bottom-full left-1/2 mb-2 -translate-x-1/2 translate-y-1 rounded-lg bg-[var(--ink)] px-2.5 py-1.5 text-xs whitespace-nowrap text-[var(--paper)] opacity-0 transition group-hover:translate-y-0 group-hover:opacity-100 group-focus-within:translate-y-0 group-focus-within:opacity-100"
+            role="tooltip"
+          >
+            <span class="font-medium">Aperçu</span>
+            <span class="ml-1.5 opacity-60">L'animation seule</span>
+          </span>
+        </span>
       </div>
     </div>
 

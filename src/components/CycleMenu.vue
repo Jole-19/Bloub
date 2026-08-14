@@ -37,10 +37,16 @@ onBeforeUnmount(() => window.removeEventListener('pointerdown', onOutside))
 </script>
 
 <template>
+  <!--
+    `text-left` sur le declencheur : les navigateurs centrent le texte des
+    boutons. Ca ne se voyait pas avec l'ancienne troncature, qui remplissait
+    toute la boite ; la troncature au mot laisse une ligne plus courte, et le
+    nom se retrouvait au milieu.
+  -->
   <div ref="root" class="relative" @keydown.esc="open = false">
     <button
       type="button"
-      class="flex max-w-56 cursor-pointer items-center gap-1.5 rounded-lg px-2 py-1 text-sm font-medium transition hover:bg-black/5"
+      class="flex max-w-56 cursor-pointer items-center gap-1.5 rounded-lg px-2 py-1 text-left text-sm font-medium transition hover:bg-black/5"
       aria-haspopup="menu"
       :aria-expanded="open"
       :title="current.name"
@@ -55,7 +61,7 @@ onBeforeUnmount(() => window.removeEventListener('pointerdown', onOutside))
         class="shrink-0 text-[var(--muted)]"
       >
         <path
-          d="M2 6.5 5 3.5l3 3"
+          d="M2 3.5 5 6.5l3-3"
           fill="none"
           stroke="currentColor"
           stroke-width="1.4"
