@@ -20,13 +20,26 @@
    * qui lui reserve sa place — dans les DEUX vues, sinon l'avatar centre change
    * de position en passant a la personnalisation.
    */
-  --timeline: 200px;
+  --timeline: 236px;
 }
 
 html,
 body,
 #app {
   height: 100%;
+}
+
+/*
+ * Troncature d'une ligne. Volontairement pas `truncate` (text-overflow) : celui
+ * -la coupe au milieu d'un mot et garde l'espace avant les points de suspension
+ * quand la coupe tombe entre deux mots. `line-clamp` coupe au mot et colle les
+ * points au texte, ce qui est la seule facon lisible d'ecrire « Mon cycle… ».
+ */
+@utility tronque {
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 1;
+  overflow: hidden;
 }
 
 /*

@@ -91,6 +91,17 @@ vidéo, lui, n'a pas bougé : c'est celui du bot, dans `skins.ts` (`encre`,
   l'inclinaison est invisible. Piege deja tombe une fois — viser un rapport
   d'au moins 1.8, ou 0.55 dans l'autre sens.
 
+## Interface
+
+- **Tronquer, c'est `tronque`, pas `truncate`.** L'utilitaire maison (styles.css)
+  coupe au mot et colle les points au texte ; `truncate` coupe au milieu d'un mot
+  et laisse une espace avant les points quand la coupe tombe entre deux mots.
+- **Le reset Tailwind casse les éléments de la couche supérieure.** Il met
+  `margin: 0` partout, or c'est la marge auto qui centre un `<dialog>` en modal :
+  sans `m-auto`, la boîte se colle en haut à gauche. Même famille de piège pour
+  un `popover`, dont les styles par défaut posent `inset: 0` : tout calage doit
+  remettre à `auto` les côtés qu'il n'utilise pas, sinon c'est `top: 0` qui gagne.
+
 ## Fichier généré
 
 `src/bot/profiles.ts` est produit par `tools/extract-profiles.py` à partir des

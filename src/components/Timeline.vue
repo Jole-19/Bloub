@@ -5,6 +5,7 @@ import GrokBot from '@/components/GrokBot.vue'
 import BotTile from '@/components/BotTile.vue'
 import ConfirmDialog from '@/components/ConfirmDialog.vue'
 import NameDialog from '@/components/NameDialog.vue'
+import ZoomSlider from '@/components/ZoomSlider.vue'
 import {
   blocksWith,
   clampDuration,
@@ -28,8 +29,11 @@ const props = defineProps<{
   expression: string
 }>()
 
-/** Deplacement de la tete de lecture : seul le lecteur sait recaler le moteur. */
-const emit = defineEmits<{ seek: [seconds: number] }>()
+/**
+ * `seek` : deplacement de la tete de lecture, seul le lecteur sait recaler le
+ * moteur. `preview` : la page entiere se met en scene, c'est elle qui decide.
+ */
+const emit = defineEmits<{ seek: [seconds: number]; preview: [] }>()
 
 /** La palette du « + », dans l'ordre de la video. */
 const PALETTE = SEQUENCE.map((id) => STATE_BY_ID.get(id)!)
@@ -158,6 +162,12 @@ function zoomAt(next: number, clientX?: number) {
   })
 }
 
+/** Zoom au curseur : on garde au centre ce qu'on regarde, faute de pointeur. */
+function onZoomSlider(v: number) {
+  const el = track.value
+  zoomAt(v, el ? el.getBoundingClientRect().left + el.clientWidth / 2 : undefined)
+}
+
 /**
  * Molette et trackpad sur la piste :
  * - pincement du trackpad (le navigateur l'annonce comme une molette + `ctrl`,
@@ -262,6 +272,13 @@ function openPicker() {
   const bouton = addButton.value
   const boite = picker.value
   if (!bouton || !boite) return
+  // au clavier, `Entree` ne declenche pas la fermeture legere (qui ecoute le
+  // pointeur) : sans ce garde, on rouvrirait une palette deja ouverte, et
+  // `showPopover` leve une exception dans ce cas
+  if (boite.matches(':popover-open')) {
+    boite.hidePopover()
+    return
+  }
   const r = bouton.getBoundingClientRect()
   const largeur = 288
   pickerPos.value = {
@@ -294,11 +311,34 @@ function removeBlock(index: number) {
 
 /* ------------------------------------------------------ glisser / etirer */
 
-type Drag = { from: number; startX: number; moved: boolean }
+/**
+ * Glisser-deposer : pendant le geste, le montage n'est PAS modifie. La carte
+ * saisie suit le pointeur et les autres s'ecartent de sa largeur — c'est ce qui
+ * donne la sensation de deplacer un objet. Le montage n'est recompose qu'au
+ * lacher : reordonner en direct ferait sauter la carte d'un emplacement a
+ * l'autre sous le doigt.
+ */
+type Drag = { from: number; to: number; startX: number; dx: number; moved: boolean }
 type Resize = { index: number; startX: number; startDuration: number }
 
 const drag = ref<Drag | null>(null)
 const resize = ref<Resize | null>(null)
+
+/** Decalage a appliquer a une carte pendant qu'on en deplace une autre. */
+function shiftOf(i: number) {
+  const d = drag.value
+  if (!d?.moved) return 0
+  if (i === d.from) return d.dx
+  const w = width(d.from)
+  if (d.to > d.from && i > d.from && i <= d.to) return -w
+  if (d.to < d.from && i >= d.to && i < d.from) return w
+  return 0
+}
+
+/** Vrai pour la carte qu'on est en train de deplacer : elle se souleve. */
+function lifted(i: number) {
+  return Boolean(drag.value?.moved) && i === drag.value?.from
+}
 
 /** Index de la carte sous une position, en secondes depuis le debut de la piste. */
 function indexAt(t: number) {
@@ -318,28 +358,33 @@ function pointerSeconds(e: PointerEvent) {
 
 function onBlockDown(index: number, e: PointerEvent) {
   ;(e.currentTarget as HTMLElement).setPointerCapture(e.pointerId)
-  drag.value = { from: index, startX: e.clientX, moved: false }
+  drag.value = { from: index, to: index, startX: e.clientX, dx: 0, moved: false }
 }
 
 function onBlockMove(e: PointerEvent) {
   const d = drag.value
   if (!d) return
-  if (Math.abs(e.clientX - d.startX) > 4) d.moved = true
-  if (!d.moved) return
-  const cible = indexAt(pointerSeconds(e))
-  if (cible === d.from || cible < 0) return
-  // le curseur suit la carte qu'on deplace, sinon la lecture sauterait ailleurs
-  const suivi = block.value === d.from ? cible : block.value
-  edit({ blocks: moveBlock(blocks.value, d.from, cible) })
-  block.value = suivi
-  d.from = cible
+  // quelques pixels de tolerance : un clic tremble toujours un peu
+  if (!d.moved && Math.abs(e.clientX - d.startX) <= 4) return
+  d.moved = true
+  d.dx = e.clientX - d.startX
+  d.to = Math.max(0, indexAt(pointerSeconds(e)))
 }
 
 function onBlockUp(index: number) {
   const d = drag.value
   drag.value = null
+  if (!d) return
   // un clic sans deplacement, c'est un saut de la tete de lecture
-  if (d && !d.moved) block.value = index
+  if (!d.moved) {
+    block.value = index
+    return
+  }
+  if (d.to === d.from) return
+  // le curseur suit la carte qu'on deplace, sinon la lecture sauterait ailleurs
+  const suivi = block.value === d.from ? d.to : block.value
+  edit({ blocks: moveBlock(blocks.value, d.from, d.to) })
+  block.value = suivi
 }
 
 /* ----------------------------------------------------------------- scrub */
@@ -446,36 +491,6 @@ watch(block, () => {
           @remove="askRemove"
         />
 
-        <!-- loupe : agrandit les cartes, jamais le montage -->
-        <div class="ml-auto flex items-center gap-0.5">
-          <button
-            type="button"
-            class="flex h-6 w-6 cursor-pointer items-center justify-center rounded-md text-[var(--muted)] transition hover:bg-black/5 hover:text-[var(--ink)] disabled:opacity-30 disabled:hover:bg-transparent"
-            :aria-label="t('timeline.zoomOut')"
-            :disabled="zoom <= MIN_ZOOM"
-            @click="zoomAt(zoom / 1.3)"
-          >
-            <svg width="12" height="12" viewBox="0 0 12 12" aria-hidden="true">
-              <path d="M2 6h8" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" />
-            </svg>
-          </button>
-          <button
-            type="button"
-            class="flex h-6 w-6 cursor-pointer items-center justify-center rounded-md text-[var(--muted)] transition hover:bg-black/5 hover:text-[var(--ink)] disabled:opacity-30 disabled:hover:bg-transparent"
-            :aria-label="t('timeline.zoomIn')"
-            :disabled="zoom >= MAX_ZOOM"
-            @click="zoomAt(zoom * 1.3)"
-          >
-            <svg width="12" height="12" viewBox="0 0 12 12" aria-hidden="true">
-              <path
-                d="M6 2v8M2 6h8"
-                stroke="currentColor"
-                stroke-width="1.5"
-                stroke-linecap="round"
-              />
-            </svg>
-          </button>
-        </div>
       </div>
 
       <!-- piste -->
@@ -533,17 +548,28 @@ watch(block, () => {
                 v-for="(b, i) in blocks"
                 :key="`${i}-${b.state}`"
                 class="group relative shrink-0 pr-1"
-                :style="{ width: `${b.duration * scale}px` }"
+                :class="
+                  drag?.moved && i === drag.from
+                    ? 'z-20'
+                    : 'transition-transform duration-150 ease-out'
+                "
+                :style="{
+                  width: `${b.duration * scale}px`,
+                  transform: shiftOf(i) ? `translateX(${shiftOf(i)}px)` : undefined
+                }"
               >
                 <button
                   type="button"
                   class="flex h-full w-full cursor-grab flex-col justify-between overflow-hidden rounded-lg px-1.5 py-1 text-left transition select-none active:cursor-grabbing"
-                  :class="
+                  :class="[
                     i === block
                       ? 'bg-white ring-2 ring-[var(--ink)] ring-inset'
-                      : 'bg-black/[0.045] hover:bg-black/[0.08]'
+                      : 'bg-black/[0.045] hover:bg-black/[0.08]',
+                    lifted(i) ? 'scale-[1.02] opacity-75 shadow-lg' : ''
+                  ]"
+                  :aria-label="
+                    t('timeline.blockAria', { state: label(i), duration: secondes(b.duration) })
                   "
-                  :aria-label="t('timeline.blockAria', { state: label(i), duration: secondes(b.duration) })"
                   :aria-current="i === block ? 'true' : undefined"
                   @pointerdown="onBlockDown(i, $event)"
                   @pointermove="onBlockMove"
@@ -570,11 +596,11 @@ watch(block, () => {
                     />
                   </span>
                   <span
-                    class="flex items-baseline justify-between gap-1 text-xs leading-none tabular-nums"
-                    :class="i === block ? 'font-medium text-[var(--ink)]' : 'text-[var(--muted)]'"
+                    v-if="width(i) > 50"
+                    class="tronque text-center text-xs leading-none font-semibold tabular-nums"
+                    :class="i === block ? 'text-[var(--ink)]' : 'text-[var(--muted)]'"
                   >
-                    <span>{{ i + 1 }}</span>
-                    <span v-if="width(i) > 60" class="truncate">{{ secondes(b.duration) }}</span>
+                    {{ secondes(b.duration) }}
                   </span>
                 </button>
 
@@ -598,11 +624,20 @@ watch(block, () => {
                   <button
                     v-if="blocks.length > 1"
                     type="button"
-                    class="absolute top-1 right-2 flex h-5 w-5 cursor-pointer items-center justify-center rounded-full bg-black/10 text-xs leading-none text-[var(--ink)] opacity-0 transition group-hover:opacity-100 hover:bg-black/20 focus-visible:opacity-100"
+                    class="absolute top-1 right-2 flex h-5 w-5 cursor-pointer items-center justify-center rounded-full bg-black/10 text-[var(--ink)] opacity-0 transition group-hover:opacity-100 hover:bg-black/20 focus-visible:opacity-100"
                     :aria-label="t('timeline.blockRemoveAria', { state: label(i) })"
                     @click="removeBlock(i)"
                   >
-                    ×
+                    <!-- croix dessinee : le glyphe « × » de la police ne tombe
+                         pas au centre optique de la pastille -->
+                    <svg width="9" height="9" viewBox="0 0 10 10" aria-hidden="true">
+                      <path
+                        d="M2.6 2.6 7.4 7.4M7.4 2.6 2.6 7.4"
+                        stroke="currentColor"
+                        stroke-width="1.5"
+                        stroke-linecap="round"
+                      />
+                    </svg>
                   </button>
               </li>
 
@@ -663,6 +698,42 @@ watch(block, () => {
           v-if="overflow.right"
           class="pointer-events-none absolute inset-y-0 right-0 w-10 bg-gradient-to-l from-[var(--paper)] to-transparent"
         />
+      </div>
+
+      <!-- barre d'outils, dans le coin : loupe, compteur, aperçu -->
+      <div class="flex shrink-0 items-center justify-end gap-4">
+        <ZoomSlider :zoom="zoom" :min="MIN_ZOOM" :max="MAX_ZOOM" @update:zoom="onZoomSlider" />
+
+        <p class="text-xs tabular-nums text-[var(--muted)]">
+          <span class="text-[var(--ink)]">{{ mmss(at) }}</span> / {{ mmss(total) }}
+        </p>
+
+        <!-- infobulle au survol ET au focus clavier, comme la barre laterale -->
+        <span class="group relative flex">
+          <button
+            type="button"
+            class="flex h-7 w-7 cursor-pointer items-center justify-center rounded-lg text-[var(--muted)] transition hover:bg-black/5 hover:text-[var(--ink)]"
+            aria-label="Aperçu"
+            @click="emit('preview')"
+          >
+            <svg width="17" height="17" viewBox="0 0 20 20" aria-hidden="true">
+              <path
+                d="M1.8 10S5 5.2 10 5.2 18.2 10 18.2 10 15 14.8 10 14.8 1.8 10 1.8 10z"
+                fill="none"
+                stroke="currentColor"
+                stroke-width="1.5"
+                stroke-linejoin="round"
+              />
+              <circle cx="10" cy="10" r="2.3" fill="currentColor" />
+            </svg>
+          </button>
+          <span
+            class="pointer-events-none absolute bottom-full left-1/2 mb-2 -translate-x-1/2 translate-y-1 rounded-lg bg-[var(--ink)] px-2.5 py-1.5 text-xs whitespace-nowrap text-[var(--paper)] opacity-0 transition group-hover:translate-y-0 group-hover:opacity-100 group-focus-within:translate-y-0 group-focus-within:opacity-100"
+            role="tooltip"
+          >
+            Aperçu
+          </span>
+        </span>
       </div>
     </div>
 

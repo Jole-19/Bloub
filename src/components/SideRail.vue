@@ -5,9 +5,9 @@ export type ViewId = 'animations' | 'personnaliser'
 
 const view = defineModel<ViewId>({ default: 'personnaliser' })
 
-const ITEMS: Array<{ id: ViewId; label: string; hint: string }> = [
-  { id: 'personnaliser', label: 'Personnaliser', hint: 'Forme, expression et couleur' },
-  { id: 'animations', label: 'Animations', hint: 'Jouer et déclencher les états' }
+const ITEMS: Array<{ id: ViewId; label: string }> = [
+  { id: 'personnaliser', label: 'Personnaliser' },
+  { id: 'animations', label: 'Animations' }
 ]
 
 /**
@@ -84,8 +84,7 @@ const muted = ref<ViewId | null>(null)
           :class="muted === item.id && 'translate-x-1! opacity-0!'"
           role="tooltip"
         >
-          <span class="font-medium">{{ item.label }}</span>
-          <span class="ml-1.5 opacity-60">{{ item.hint }}</span>
+          {{ item.label }}
         </span>
       </li>
     </ul>
