@@ -255,11 +255,6 @@ function onSeek(t: number) {
         <!-- palette : une vignette s'ajoute a la fin du montage -->
         <template v-if="view === 'animations'">
           <h2 class="text-sm font-semibold">Animations</h2>
-          <p class="mt-0.5 text-xs text-[var(--muted)]">
-            {{
-              cycle.locked ? 'Cycle verrouillé — crée le tien pour monter.' : 'Clique pour ajouter.'
-            }}
-          </p>
           <div class="mt-2 grid grid-cols-4 gap-1.5">
             <BotTile
               v-for="s in order"

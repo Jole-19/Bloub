@@ -27,6 +27,51 @@ body,
   height: 100%;
 }
 
+/*
+ * Ouverture de la boite de dialogue. Une transition sur un element qui passe de
+ * `display: none` a visible a besoin de `@starting-style` pour avoir un etat de
+ * depart, et de `allow-discrete` pour que `display` et `overlay` attendent la
+ * fin de l'animation a la fermeture. C'est pour ca que ce n'est pas ecrit en
+ * classes utilitaires.
+ */
+.dialogue,
+.dialogue::backdrop {
+  opacity: 0;
+  transition:
+    opacity 0.18s ease-out,
+    transform 0.18s ease-out,
+    overlay 0.18s ease-out allow-discrete,
+    display 0.18s ease-out allow-discrete;
+}
+
+.dialogue {
+  transform: translateY(8px) scale(0.98);
+}
+
+.dialogue[open],
+.dialogue[open]::backdrop {
+  opacity: 1;
+}
+
+.dialogue[open] {
+  transform: none;
+}
+
+.dialogue::backdrop {
+  background: rgb(10 12 20 / 0.4);
+}
+
+@starting-style {
+  .dialogue[open],
+  .dialogue[open]::backdrop {
+    opacity: 0;
+  }
+
+  .dialogue[open] {
+    transform: translateY(8px) scale(0.98);
+  }
+}
+
 body {
   margin: 0;
   background: var(--paper);

@@ -3,6 +3,7 @@ import { computed, nextTick, onMounted, ref, watch } from 'vue'
 import CycleMenu from '@/components/CycleMenu.vue'
 import GrokBot from '@/components/GrokBot.vue'
 import BotTile from '@/components/BotTile.vue'
+import NameDialog from '@/components/NameDialog.vue'
 import {
   blocksWith,
   clampDuration,
@@ -56,8 +57,14 @@ const total = computed(() => totalDuration(cycle.value))
 const at = computed(() => offsetOf(cycle.value, block.value) + props.elapsed)
 
 const track = ref<HTMLElement | null>(null)
-const renaming = ref(false)
-const nameInput = ref<HTMLInputElement | null>(null)
+/**
+ * Nommage d'un cycle : meme boite pour la creation et le renommage, le second
+ * cas portant l'id vise. La creation n'a lieu qu'a la validation — annuler ne
+ * doit pas laisser un cycle vide derriere.
+ */
+const naming = ref<{ mode: 'create' | 'rename'; id?: string } | null>(null)
+const nameDraft = ref('')
+const dialogOpen = ref(false)
 /** Debordement de la piste, pour n'afficher les degrades que s'ils servent. */
 const overflow = ref({ left: false, right: false })
 /**
@@ -187,37 +194,42 @@ function select(id: string) {
   block.value = 0
 }
 
-function onCreate() {
-  // jamais de cycle vide : le lecteur aurait un montage sans rien a jouer
-  const neuf: Cycle = {
-    id: nextCycleId(cycles.value),
-    name: uniqueName('Mon cycle', cycles.value),
-    blocks: [makeBlock('idle')]
+function askCreate() {
+  naming.value = { mode: 'create' }
+  nameDraft.value = uniqueName('Mon cycle', cycles.value)
+  dialogOpen.value = true
+}
+
+function askRename(id: string) {
+  naming.value = { mode: 'rename', id }
+  nameDraft.value = cycles.value.find((c) => c.id === id)?.name ?? ''
+  dialogOpen.value = true
+}
+
+function onNamed(name: string) {
+  const demande = naming.value
+  naming.value = null
+  if (!demande) return
+  if (demande.mode === 'create') {
+    // jamais de cycle vide : le lecteur aurait un montage sans rien a jouer
+    const neuf: Cycle = {
+      id: nextCycleId(cycles.value),
+      name: uniqueName(name, cycles.value),
+      blocks: [makeBlock('idle')]
+    }
+    cycles.value = [...cycles.value, neuf]
+    select(neuf.id)
+    return
   }
-  cycles.value = [...cycles.value, neuf]
-  select(neuf.id)
-  startRename()
+  const autres = cycles.value.filter((c) => c.id !== demande.id)
+  const unique = uniqueName(name, autres)
+  cycles.value = cycles.value.map((c) => (c.id === demande.id ? { ...c, name: unique } : c))
 }
 
 function onRemove(id: string) {
   const reste = cycles.value.filter((c) => c.id !== id)
   cycles.value = reste
   if (id === activeId.value) select(reste[0]!.id)
-}
-
-async function startRename() {
-  if (cycles.value.find((c) => c.id === activeId.value)?.locked) return
-  renaming.value = true
-  await nextTick()
-  nameInput.value?.select()
-}
-
-function commitRename(value: string) {
-  const clean = value.trim()
-  renaming.value = false
-  if (!clean || clean === cycle.value.name) return
-  const autres = cycles.value.filter((c) => c.id !== cycle.value.id)
-  edit({ name: uniqueName(clean, autres) })
 }
 
 const picking = ref(false)
@@ -341,9 +353,6 @@ watch(block, () => {
   }
 })
 
-watch(activeId, () => {
-  renaming.value = false
-})
 </script>
 
 <template>
@@ -380,31 +389,14 @@ watch(activeId, () => {
 
     <div class="flex h-full flex-col gap-2">
       <div class="flex items-center gap-1">
-        <input
-          v-if="renaming"
-          ref="nameInput"
-          class="h-7 w-48 rounded-lg bg-black/5 px-2 text-sm font-medium outline-none"
-          :value="cycle.name"
-          @keydown.enter="commitRename(($event.target as HTMLInputElement).value)"
-          @keydown.esc="renaming = false"
-          @blur="commitRename(($event.target as HTMLInputElement).value)"
-        />
         <CycleMenu
-          v-else
           v-model:active-id="activeId"
           :cycles="cycles"
           :current="cycle"
-          @create="onCreate"
+          @create="askCreate"
+          @rename="askRename"
           @remove="onRemove"
         />
-        <button
-          v-if="editable && !renaming"
-          type="button"
-          class="cursor-pointer rounded-lg px-2 py-1 text-xs text-[var(--muted)] transition hover:bg-black/5 hover:text-[var(--ink)]"
-          @click="startRename"
-        >
-          Renommer
-        </button>
 
         <!-- loupe : agrandit les cartes, jamais le montage -->
         <div class="ml-auto flex items-center gap-0.5">
@@ -642,5 +634,14 @@ watch(activeId, () => {
         />
       </div>
     </div>
+
+    <NameDialog
+      v-model:open="dialogOpen"
+      v-model:value="nameDraft"
+      :title="naming?.mode === 'rename' ? 'Renommer le cycle' : 'Nouveau cycle'"
+      label="Nom du cycle"
+      :submit-label="naming?.mode === 'rename' ? 'Renommer' : 'Créer'"
+      @submit="onNamed"
+    />
   </div>
 </template>

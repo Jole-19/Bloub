@@ -9,7 +9,7 @@ import type { Cycle } from '@/bot/cycles'
  */
 defineProps<{ cycles: Cycle[]; current: Cycle }>()
 const activeId = defineModel<string>('activeId', { required: true })
-const emit = defineEmits<{ create: []; remove: [id: string] }>()
+const emit = defineEmits<{ create: []; remove: [id: string]; rename: [id: string] }>()
 
 const open = ref(false)
 const root = ref<HTMLElement | null>(null)
@@ -46,6 +46,23 @@ onBeforeUnmount(() => window.removeEventListener('pointerdown', onOutside))
       @click="open = !open"
     >
       {{ current.name }}
+      <!-- le cadenas dit ce que la phrase disait avant : ce cycle ne s'edite pas -->
+      <svg
+        v-if="current.locked"
+        width="11"
+        height="11"
+        viewBox="0 0 12 12"
+        aria-hidden="true"
+        class="text-[var(--muted)]"
+      >
+        <path
+          d="M4 5.4V3.9a2 2 0 0 1 4 0v1.5"
+          fill="none"
+          stroke="currentColor"
+          stroke-width="1.2"
+        />
+        <rect x="2.7" y="5.4" width="6.6" height="4.6" rx="1.3" fill="currentColor" />
+      </svg>
       <svg width="10" height="10" viewBox="0 0 10 10" aria-hidden="true" class="text-[var(--muted)]">
         <path
           d="M2 6.5 5 3.5l3 3"
@@ -77,15 +94,34 @@ onBeforeUnmount(() => window.removeEventListener('pointerdown', onOutside))
           <span class="w-3 shrink-0 text-[var(--ink)]">{{ c.id === activeId ? '✓' : '' }}</span>
           <span class="truncate">{{ c.name }}</span>
         </button>
-        <button
-          v-if="!c.locked"
-          type="button"
-          class="mr-1 flex h-5 w-5 shrink-0 cursor-pointer items-center justify-center rounded-md text-[var(--muted)] opacity-0 transition group-hover/row:opacity-100 hover:bg-black/5 hover:text-[var(--ink)] focus-visible:opacity-100"
-          :aria-label="`Supprimer ${c.name}`"
-          @click="emit('remove', c.id)"
-        >
-          ×
-        </button>
+        <!-- renommer et supprimer vivent ici : la barre n'a pas a porter deux
+             boutons de plus pour une action qu'on fait une fois -->
+        <template v-if="!c.locked">
+          <button
+            type="button"
+            class="flex h-6 w-6 shrink-0 cursor-pointer items-center justify-center rounded-md text-[var(--muted)] opacity-0 transition group-hover/row:opacity-100 hover:bg-black/5 hover:text-[var(--ink)] focus-visible:opacity-100"
+            :aria-label="`Renommer ${c.name}`"
+            @click="((open = false), emit('rename', c.id))"
+          >
+            <svg width="12" height="12" viewBox="0 0 12 12" aria-hidden="true">
+              <path
+                d="M8.2 1.8 10.2 3.8 4.4 9.6 1.8 10.2 2.4 7.6z"
+                fill="none"
+                stroke="currentColor"
+                stroke-width="1.1"
+                stroke-linejoin="round"
+              />
+            </svg>
+          </button>
+          <button
+            type="button"
+            class="mr-1 flex h-6 w-6 shrink-0 cursor-pointer items-center justify-center rounded-md text-[var(--muted)] opacity-0 transition group-hover/row:opacity-100 hover:bg-black/5 hover:text-[var(--ink)] focus-visible:opacity-100"
+            :aria-label="`Supprimer ${c.name}`"
+            @click="emit('remove', c.id)"
+          >
+            ×
+          </button>
+        </template>
       </div>
 
       <div class="my-1 h-px bg-[var(--line)]" />
