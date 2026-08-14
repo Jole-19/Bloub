@@ -2,7 +2,9 @@
 import { computed, nextTick, onMounted, ref, watch } from 'vue'
 import CycleMenu from '@/components/CycleMenu.vue'
 import GrokBot from '@/components/GrokBot.vue'
+import BotTile from '@/components/BotTile.vue'
 import {
+  blocksWith,
   clampDuration,
   makeBlock,
   moveBlock,
@@ -13,7 +15,7 @@ import {
   uniqueName,
   type Cycle
 } from '@/bot/cycles'
-import { POSES, STATE_BY_ID } from '@/bot/states'
+import { POSES, SEQUENCE, STATE_BY_ID, type StateId } from '@/bot/states'
 
 const props = defineProps<{
   /** temps ecoule dans le bloc courant, pour la tete de lecture */
@@ -22,6 +24,12 @@ const props = defineProps<{
   color: string
   expression: string
 }>()
+
+/** Deplacement de la tete de lecture : seul le lecteur sait recaler le moteur. */
+const emit = defineEmits<{ seek: [seconds: number] }>()
+
+/** La palette du « + », dans l'ordre de la video. */
+const PALETTE = SEQUENCE.map((id) => STATE_BY_ID.get(id)!)
 
 const cycles = defineModel<Cycle[]>('cycles', { required: true })
 const activeId = defineModel<string>('activeId', { required: true })
@@ -69,6 +77,32 @@ function mmss(t: number) {
 
 function seconds(d: number) {
   return `${d.toFixed(1).replace('.', ',')} s`
+}
+
+/* ------------------------------------------------------------- graduation */
+
+/**
+ * Pas de la regle : le premier de la liste qui laisse au moins 52 px entre deux
+ * reperes chiffres. C'est ce qui fait qu'en dezoomant on passe de 1 s a 5 s puis
+ * a 10 s au lieu d'empiler des chiffres illisibles.
+ */
+const STEPS = [0.5, 1, 2, 5, 10, 15, 30, 60]
+
+const ticks = computed(() => {
+  const major = STEPS.find((s) => s * scale.value >= 52) ?? 60
+  // reperes intermediaires, tant qu'ils ne se collent pas les uns aux autres
+  const step = (major / 5) * scale.value >= 7 ? major / 5 : major
+  const out: Array<{ t: number; major: boolean }> = []
+  for (let i = 0; i * step <= total.value + 1e-6; i++) {
+    const t = i * step
+    out.push({ t, major: Math.abs(t / major - Math.round(t / major)) < 1e-6 })
+  }
+  return out
+})
+
+/** `0s`, `10s`, `0,5s` — court, c'est une graduation, pas un compteur. */
+function graduation(t: number) {
+  return `${Number.isInteger(t) ? t : t.toFixed(1).replace('.', ',')}s`
 }
 
 function onScroll() {
@@ -176,6 +210,13 @@ function commitRename(value: string) {
   edit({ name: uniqueName(clean, autres) })
 }
 
+const picking = ref(false)
+
+function addBlock(state: StateId) {
+  edit({ blocks: blocksWith(blocks.value, state) })
+  picking.value = false
+}
+
 function removeBlock(index: number) {
   // la derniere carte ne part pas : un montage vide n'aurait rien a jouer
   if (!editable.value || blocks.value.length < 2) return
@@ -236,6 +277,24 @@ function onBlockUp(index: number) {
   if (d && !d.moved) block.value = index
 }
 
+/* ----------------------------------------------------------------- scrub */
+
+const scrubbing = ref(false)
+
+function scrubTo(e: PointerEvent) {
+  emit('seek', Math.max(0, Math.min(total.value - 0.001, pointerSeconds(e))))
+}
+
+function onRulerDown(e: PointerEvent) {
+  ;(e.currentTarget as HTMLElement).setPointerCapture(e.pointerId)
+  scrubbing.value = true
+  scrubTo(e)
+}
+
+function onRulerMove(e: PointerEvent) {
+  if (scrubbing.value) scrubTo(e)
+}
+
 function onResizeDown(index: number, e: PointerEvent) {
   ;(e.currentTarget as HTMLElement).setPointerCapture(e.pointerId)
   resize.value = { index, startX: e.clientX, startDuration: blocks.value[index]!.duration }
@@ -288,21 +347,26 @@ watch(activeId, () => {
   <div
     class="fixed inset-x-0 bottom-0 z-30 h-[var(--timeline)] px-6 pt-3 pb-5 lg:right-[24.5rem]"
   >
-    <!-- lecture : flottante au-dessus de la piste, au centre -->
-    <button
-      type="button"
-      class="absolute -top-5 left-1/2 flex h-11 w-11 -translate-x-1/2 cursor-pointer items-center justify-center rounded-full bg-[var(--ink)] text-[var(--paper)] shadow-sm transition hover:scale-105 active:scale-95"
-      :aria-label="playing ? 'Arreter la lecture' : 'Lancer la lecture'"
-      @click="playing = !playing"
-    >
-      <svg v-if="!playing" width="15" height="15" viewBox="0 0 16 16" aria-hidden="true">
-        <path d="M4 2.5 13 8l-9 5.5z" fill="currentColor" />
-      </svg>
-      <svg v-else width="15" height="15" viewBox="0 0 16 16" aria-hidden="true">
-        <rect x="3.5" y="3" width="3.2" height="10" rx="1" fill="currentColor" />
-        <rect x="9.3" y="3" width="3.2" height="10" rx="1" fill="currentColor" />
-      </svg>
-    </button>
+    <!-- lecture : flottante au-dessus de la piste, au centre, le temps ecoule a
+         gauche et la duree totale a droite -->
+    <div class="absolute -top-5 left-1/2 flex -translate-x-1/2 items-center gap-3">
+      <span class="text-sm font-medium tabular-nums">{{ mmss(at) }}</span>
+      <button
+        type="button"
+        class="flex h-11 w-11 cursor-pointer items-center justify-center rounded-full bg-[var(--ink)] text-[var(--paper)] shadow-sm transition hover:scale-105 active:scale-95"
+        :aria-label="playing ? 'Arreter la lecture' : 'Lancer la lecture'"
+        @click="playing = !playing"
+      >
+        <svg v-if="!playing" width="15" height="15" viewBox="0 0 16 16" aria-hidden="true">
+          <path d="M4 2.5 13 8l-9 5.5z" fill="currentColor" />
+        </svg>
+        <svg v-else width="15" height="15" viewBox="0 0 16 16" aria-hidden="true">
+          <rect x="3.5" y="3" width="3.2" height="10" rx="1" fill="currentColor" />
+          <rect x="9.3" y="3" width="3.2" height="10" rx="1" fill="currentColor" />
+        </svg>
+      </button>
+      <span class="text-sm tabular-nums text-[var(--muted)]">{{ mmss(total) }}</span>
+    </div>
 
     <div class="flex h-full flex-col gap-2">
       <div class="flex items-center gap-1">
@@ -332,12 +396,8 @@ watch(activeId, () => {
           Renommer
         </button>
 
-        <p class="ml-auto text-xs tabular-nums text-[var(--muted)]">
-          <span class="text-[var(--ink)]">{{ mmss(at) }}</span> / {{ mmss(total) }}
-        </p>
-
         <!-- loupe : agrandit les cartes, jamais le montage -->
-        <div class="ml-2 flex items-center gap-0.5">
+        <div class="ml-auto flex items-center gap-0.5">
           <button
             type="button"
             class="flex h-6 w-6 cursor-pointer items-center justify-center rounded-md text-[var(--muted)] transition hover:bg-black/5 hover:text-[var(--ink)] disabled:opacity-30 disabled:hover:bg-transparent"
@@ -376,8 +436,41 @@ watch(activeId, () => {
           @scroll="onScroll"
           @wheel="onWheel"
         >
-          <div class="relative h-full" :style="{ width: `${total * scale}px` }">
-            <ul class="flex h-full items-stretch">
+          <!-- la piste garde de la place pour la carte « + » a sa suite -->
+          <div
+            class="relative flex h-full flex-col"
+            :style="{ width: `${total * scale + (editable ? 76 : 0)}px` }"
+          >
+            <!--
+              Regle graduee : elle sert aussi de zone de deplacement. On attrape
+              n'importe ou dessus pour promener la tete de lecture, comme sur un
+              montage video — c'est la seule facon d'atteindre un point PRECIS
+              d'une carte, le clic sur une carte ne fait que sauter a son debut.
+            -->
+            <div
+              class="relative h-4 shrink-0 cursor-ew-resize"
+              @pointerdown="onRulerDown"
+              @pointermove="onRulerMove"
+              @pointerup="scrubbing = false"
+              @pointercancel="scrubbing = false"
+            >
+              <span
+                v-for="tick in ticks"
+                :key="tick.t"
+                class="absolute top-0 flex items-start gap-0.5"
+                :style="{ transform: `translateX(${tick.t * scale}px)` }"
+              >
+                <span
+                  class="block w-px bg-[var(--line)]"
+                  :class="tick.major ? 'h-2.5' : 'h-1.5'"
+                />
+                <span v-if="tick.major" class="text-[10px] leading-none text-[var(--muted)]">
+                  {{ graduation(tick.t) }}
+                </span>
+              </span>
+            </div>
+
+            <ul class="flex flex-1 items-stretch">
               <!--
                 La largeur du <li> vaut exactement la duree de la carte : la
                 gouttiere est un padding interne, sinon les cartes decaleraient la
@@ -455,21 +548,56 @@ watch(activeId, () => {
                     ×
                   </button>
                 </template>
-                </li>
+              </li>
+
+              <!-- ajout depuis la piste, sans aller jusqu'a la palette de droite -->
+              <li v-if="editable" class="relative w-[72px] shrink-0 pl-1">
+                <button
+                  type="button"
+                  class="flex h-full w-full cursor-pointer items-center justify-center rounded-lg border-2 border-dashed border-[var(--line)] text-lg leading-none text-[var(--muted)] transition hover:border-[var(--muted)] hover:text-[var(--ink)]"
+                  aria-label="Ajouter une animation"
+                  :aria-expanded="picking"
+                  aria-haspopup="menu"
+                  @click="picking = !picking"
+                >
+                  +
+                </button>
+                <div
+                  v-if="picking"
+                  class="absolute right-0 bottom-full z-10 mb-2 w-72 rounded-xl bg-white p-2 shadow-lg ring-1 ring-black/5"
+                  role="menu"
+                >
+                  <div class="grid grid-cols-4 gap-1.5">
+                    <BotTile
+                      v-for="s in PALETTE"
+                      :key="s.id"
+                      :label="s.label"
+                      :selected="false"
+                      :state="s.id"
+                      :shape="shape"
+                      :color="color"
+                      :expression="expression"
+                      :frozen-at="POSES[s.id]"
+                      @click="addBlock(s.id)"
+                    />
+                  </div>
+                </div>
+              </li>
             </ul>
 
             <!--
               Tete de lecture : seule sa transformation change d'une image a
-              l'autre, et elle vit dans la piste, donc elle defile avec elle.
-              Elle ne s'affiche qu'a l'interieur d'une carte : posee sur le bord
-              gauche, elle n'apprend rien que le cadre de la carte courante ne
-              dise deja, et elle depassait comme une poignee qui n'existe pas.
+              l'autre, et elle vit dans la piste, donc elle defile avec elle. Sa
+              poignee est dans la regle, la ou on l'attrape.
             -->
             <div
-              v-if="playing || elapsed > 0.05"
               class="pointer-events-none absolute inset-y-0 left-0 w-0.5 rounded-full bg-[var(--ink)]"
               :style="{ transform: `translateX(${at * scale}px)` }"
-            />
+            >
+              <span
+                class="absolute -top-0.5 -left-[5px] h-3 w-3 rounded-full border-2 border-[var(--paper)] bg-[var(--ink)]"
+              />
+            </div>
           </div>
         </div>
 

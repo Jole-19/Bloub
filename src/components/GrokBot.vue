@@ -107,6 +107,25 @@ function goToBlock(i: number) {
   apply(i)
 }
 
+/**
+ * Deplacement de la tete de lecture depuis la timeline : on tombe au milieu d'un
+ * bloc, pas a son debut. L'offset transite par une variable plutot que par un
+ * appel direct a `apply` : changer `block` declenchera le watcher, qui doit
+ * poser la meme date que nous — sinon il remettrait le bloc a zero juste apres.
+ */
+let pendingOffset = 0
+
+function seek(index: number, offset = 0) {
+  if (block.value === index) {
+    apply(index, offset)
+    return
+  }
+  pendingOffset = offset
+  block.value = index
+}
+
+defineExpose({ seek })
+
 function tick(ms: number) {
   raf = requestAnimationFrame(tick)
   // Horloge de scene a delta borne : un onglet masque puis reaffiche reprend
@@ -140,7 +159,10 @@ function redrawFrozen() {
 // Curseur deplace de l'exterieur : clic sur un bloc de la timeline. Quand c'est
 // `goToBlock` qui l'a bouge, `apply` est deja passe et repasse ici sans effet
 // (setState sort si l'etat n'a pas change, la date de fin est la meme).
-watch(block, (i) => apply(i))
+watch(block, (i) => {
+  apply(i, pendingOffset)
+  pendingOffset = 0
+})
 
 // Changement d'etat venu d'une prop : c'est le cas des vignettes figees, qui
 // n'ont pas de curseur. En lecture, `apply` a deja fait le travail.

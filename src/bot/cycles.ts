@@ -104,6 +104,11 @@ export function blockAt(cycle: Cycle, t: number): { index: number; elapsed: numb
   return { index: cycle.blocks.length - 1, elapsed: 0 }
 }
 
+/** Ajoute une animation a la fin du montage (palette de droite ou carte « + »). */
+export function blocksWith(blocks: Block[], state: StateId): Block[] {
+  return [...blocks, makeBlock(state)]
+}
+
 /** Deplace un bloc, en rendant une nouvelle liste (les etats Vue sont remplaces). */
 export function moveBlock(blocks: Block[], from: number, to: number): Block[] {
   const next = blocks.slice()

@@ -6,6 +6,8 @@ import GrokBot from '@/components/GrokBot.vue'
 import SideRail, { type ViewId } from '@/components/SideRail.vue'
 import Timeline from '@/components/Timeline.vue'
 import {
+  blockAt,
+  blocksWith,
   DEFAULT_CYCLE_ID,
   defaultCycle,
   makeBlock,
@@ -168,8 +170,19 @@ const order = computed(() => SEQUENCE.map((id) => STATES.find((s) => s.id === id
 function addBlock(id: StateId) {
   if (cycle.value.locked) return
   cycles.value = cycles.value.map((c) =>
-    c.id === cycle.value.id ? { ...c, blocks: [...c.blocks, makeBlock(id)] } : c
+    c.id === cycle.value.id ? { ...c, blocks: blocksWith(c.blocks, id) } : c
   )
+}
+
+/**
+ * Deplacement de la tete de lecture depuis la regle. Le lecteur est le seul a
+ * pouvoir recaler le moteur (il tient l'horloge), d'ou l'appel direct.
+ */
+const bot = ref<InstanceType<typeof GrokBot> | null>(null)
+
+function onSeek(t: number) {
+  const { index, elapsed: offset } = blockAt(cycle.value, t)
+  bot.value?.seek(index, offset)
 }
 
 </script>
@@ -220,6 +233,7 @@ function addBlock(id: StateId) {
           class="flex aspect-square w-full max-w-[min(460px,calc(100dvh_-_var(--timeline)_-_7rem))] items-center justify-center"
         >
           <GrokBot
+            ref="bot"
             class="h-auto max-w-full"
             v-model:state="state"
             v-model:block="block"
@@ -284,6 +298,7 @@ function addBlock(id: StateId) {
       :shape="shape"
       :color="color"
       :expression="expression"
+      @seek="onSeek"
     />
   </template>
 </template>
