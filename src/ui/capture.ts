@@ -67,27 +67,17 @@ async function dessine(markup: string, taille: number, canvas: HTMLCanvasElement
   }
 }
 
-export async function versBitmap(
-  markup: string,
-  taille: number,
-  type: 'image/png' | 'image/webp' = 'image/png',
-  canvas = document.createElement('canvas')
-): Promise<Blob> {
+/** Rasterise un SVG en PNG. Le PNG est sans perte, il n'a pas de qualite a regler. */
+export async function versPng(markup: string, taille: number): Promise<Blob> {
+  const canvas = document.createElement('canvas')
   await dessine(markup, taille, canvas)
   return await new Promise<Blob>((resolve, reject) => {
     canvas.toBlob(
-      (blob) => (blob ? resolve(blob) : reject(new Error(`encodage ${type} impossible`))),
-      type,
-      // Qualite 1 = SANS PERTE, et c'est gratuit sur un aplat de deux teintes :
-      // mesure sur une image du bot, 4116 octets sans perte contre 4128 avec.
-      // Un encodeur avec perte n'a rien a y gagner, mais salit le bord de la boule.
-      1
+      (blob) => (blob ? resolve(blob) : reject(new Error('encodage png impossible'))),
+      'image/png'
     )
   })
 }
-
-/** Raccourci pour l'export fixe. */
-export const versPng = (markup: string, taille: number) => versBitmap(markup, taille, 'image/png')
 
 /** Declenche le telechargement d'un blob sous le nom donne. */
 export function telecharge(blob: Blob, nom: string) {
