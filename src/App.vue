@@ -106,6 +106,15 @@ watch(activeId, (v) => localStorage.setItem('grokbot:cycle', v))
 // La personnalisation est la vue d'accueil, sauf si l'URL designe un etat
 // precis : dans ce cas le lien vise clairement le lecteur.
 const view = ref<ViewId>(initial.named ? 'animations' : 'personnaliser')
+
+/**
+ * Apercu : la scene seule, sans barre latérale, sans panneau ni montage. On en
+ * sort par Echap ou par le bouton, qui reste le seul element affiche.
+ */
+const preview = ref(false)
+window.addEventListener('keydown', (e) => {
+  if (e.key === 'Escape') preview.value = false
+})
 // Meme regle qu'au changement de vue : on ne joue pas la sequence en
 // personnalisation, sinon la forme est illisible. Le watcher ne se declenchant
 // qu'au changement, il faut l'appliquer aussi a l'initialisation.
@@ -217,26 +226,48 @@ function onSeek(t: number) {
     <!-- titre de structure : la page n'affiche volontairement aucun titre, mais
          un document sans h1 n'est pas navigable au lecteur d'ecran -->
     <h1 class="sr-only">Grok bot</h1>
-    <SideRail v-model="view" />
+    <SideRail v-if="!preview" v-model="view" />
+
+    <!-- Sortie d'apercu : le seul element qui reste a l'ecran avec l'avatar. -->
+    <button
+      v-else
+      type="button"
+      class="fixed top-5 right-5 z-30 flex cursor-pointer items-center gap-1.5 rounded-lg bg-white/80 px-2.5 py-1.5 text-xs text-[var(--muted)] shadow-sm backdrop-blur transition hover:text-[var(--ink)]"
+      @click="preview = false"
+    >
+      Quitter l'aperçu
+      <kbd class="rounded bg-black/5 px-1 py-0.5 text-[10px]">Échap</kbd>
+    </button>
 
     <!-- La place de la barre de montage est reservee dans les deux vues : elle
          est fixee en bas, donc sans cette reserve la scene se recentrerait en
          passant a la personnalisation et l'avatar sauterait d'un cran. -->
     <div
-      class="flex min-h-full items-stretch justify-center gap-10 p-8 pb-[calc(var(--timeline)_+_1rem)] pl-24 max-lg:flex-col"
+      class="flex min-h-full items-stretch justify-center gap-10 p-8 max-lg:flex-col"
+      :class="preview ? '' : 'pb-[calc(var(--timeline)_+_1rem)] pl-24'"
     >
       <!-- scene. Sa hauteur ne doit pas dependre du panneau de droite : etiree
            (items-stretch), elle suivait le panneau de personnalisation, plus
            haut que la grille d'animations, et l'avatar centre changeait de
            place d'un onglet a l'autre. -->
       <main
-        class="flex flex-1 items-center justify-center lg:min-h-[calc(100dvh_-_3rem_-_var(--timeline))] lg:self-start"
+        class="flex flex-1 items-center justify-center lg:self-start"
+        :class="
+          preview
+            ? 'lg:min-h-[calc(100dvh_-_4rem)]'
+            : 'lg:min-h-[calc(100dvh_-_3rem_-_var(--timeline))]'
+        "
       >
         <!-- l'avatar se met a la hauteur disponible : sur une fenetre basse, la
              barre de montage lui prend assez de place pour qu'un carre de 460
              deborde et fasse defiler la page -->
         <div
-          class="flex aspect-square w-full max-w-[min(460px,calc(100dvh_-_var(--timeline)_-_7rem))] items-center justify-center"
+          class="flex aspect-square w-full items-center justify-center"
+          :class="
+            preview
+              ? 'max-w-[min(560px,calc(100dvh_-_6rem))]'
+              : 'max-w-[min(460px,calc(100dvh_-_var(--timeline)_-_7rem))]'
+          "
         >
           <GrokBot
             ref="bot"
@@ -246,7 +277,7 @@ function onSeek(t: number) {
             v-model:elapsed="elapsed"
             v-model:playing="playing"
             :cycle="played"
-            :size="440"
+            :size="preview ? 560 : 440"
             :shape="shape"
             :color="color"
             :expression="expression"
@@ -257,7 +288,7 @@ function onSeek(t: number) {
       <!-- largeur fixe, identique dans les deux vues : sinon la scene se decale
            au changement d'onglet. w-80 est la contrainte du personnalisateur
            (grille de 4 vignettes), le panneau d'animations s'y adapte. -->
-      <aside class="w-full lg:w-80 lg:shrink-0">
+      <aside v-if="!preview" class="w-full lg:w-80 lg:shrink-0">
         <!-- palette : une vignette s'ajoute a la fin du montage -->
         <template v-if="view === 'animations'">
           <h2 class="text-sm font-semibold">Animations</h2>
@@ -289,7 +320,7 @@ function onSeek(t: number) {
     </div>
 
     <Timeline
-      v-if="view === 'animations'"
+      v-if="view === 'animations' && !preview"
       v-model:cycles="cycles"
       v-model:active-id="activeId"
       v-model:block="block"
@@ -299,6 +330,7 @@ function onSeek(t: number) {
       :color="color"
       :expression="expression"
       @seek="onSeek"
+      @preview="preview = true"
     />
   </template>
 </template>

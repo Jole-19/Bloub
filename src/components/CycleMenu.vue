@@ -46,7 +46,7 @@ onBeforeUnmount(() => window.removeEventListener('pointerdown', onOutside))
       :title="current.name"
       @click="open = !open"
     >
-      <span class="truncate">{{ current.name }}</span>
+      <span class="tronque">{{ current.name }}</span>
       <svg
         width="10"
         height="10"
@@ -85,7 +85,7 @@ onBeforeUnmount(() => window.removeEventListener('pointerdown', onOutside))
           @click="choose(c.id)"
         >
           <span class="w-3 shrink-0 text-[var(--ink)]">{{ c.id === activeId ? '✓' : '' }}</span>
-          <span class="truncate">{{ c.name }}</span>
+          <span class="tronque">{{ c.name }}</span>
         </button>
         <!-- renommer et supprimer vivent ici : la barre n'a pas a porter deux
              boutons de plus pour une action qu'on fait une fois -->
