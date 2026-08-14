@@ -1,11 +1,11 @@
 <script setup lang="ts">
 export type ViewId = 'animations' | 'personnaliser'
 
-const view = defineModel<ViewId>({ default: 'animations' })
+const view = defineModel<ViewId>({ default: 'personnaliser' })
 
 const ITEMS: Array<{ id: ViewId; label: string; hint: string }> = [
-  { id: 'animations', label: 'Animations', hint: 'Jouer et declencher les etats' },
-  { id: 'personnaliser', label: 'Personnaliser', hint: 'Forme et couleur du bot' }
+  { id: 'personnaliser', label: 'Personnaliser', hint: 'Forme, expression et couleur' },
+  { id: 'animations', label: 'Animations', hint: 'Jouer et déclencher les états' }
 ]
 </script>
 

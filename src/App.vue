@@ -3,6 +3,7 @@ import { computed, ref, watch } from 'vue'
 import Customizer from '@/components/Customizer.vue'
 import GrokBot from '@/components/GrokBot.vue'
 import SideRail, { type ViewId } from '@/components/SideRail.vue'
+import { DEFAULT_EXPRESSION, EXPRESSION_BY_ID } from '@/bot/expressions'
 import { COLOR_BY_ID, DEFAULT_COLOR, DEFAULT_SHAPE, SHAPE_BY_ID } from '@/bot/skins'
 import { SEQUENCE, STATES, type StateId } from '@/bot/states'
 
@@ -14,19 +15,27 @@ import { SEQUENCE, STATES, type StateId } from '@/bot/states'
 function readHash() {
   const params = new URLSearchParams(location.hash.slice(1))
   const asked = params.get('etat') as StateId | null
+  // on ne fait jamais confiance a l'URL : l'etat doit exister
+  const known = STATES.some((s) => s.id === asked)
   return {
-    // on ne fait jamais confiance a l'URL : l'etat doit exister
-    state: STATES.some((s) => s.id === asked) ? asked! : 'idle',
+    state: known ? asked! : 'idle',
+    named: known,
     playing: !params.has('stop'),
     gallery: params.has('planche')
   }
 }
 
 const initial = readHash()
-const state = ref<StateId>(initial.state)
-const playing = ref(initial.playing)
 const gallery = ref(initial.gallery)
-const view = ref<ViewId>('animations')
+
+// La personnalisation est la vue d'accueil, sauf si l'URL designe un etat
+// precis : dans ce cas le lien vise clairement le lecteur.
+const view = ref<ViewId>(initial.named ? 'animations' : 'personnaliser')
+const state = ref<StateId>(initial.state)
+// Meme regle qu'au changement de vue : on ne joue pas la sequence en
+// personnalisation, sinon la forme est illisible. Le watcher ne se declenchant
+// qu'au changement, il faut l'appliquer aussi a l'initialisation.
+const playing = ref(initial.playing && view.value === 'animations')
 
 // L'URL est partageable, donc elle suit l'etat ET la lecture. replace et pas
 // push : on ne veut pas un cran d'historique par etat.
@@ -46,7 +55,7 @@ window.addEventListener('hashchange', () => {
  * tourner — le regard derive et les yeux clignent toujours, ce qui garde le bot
  * vivant sans empecher de juger la forme.
  */
-let resume = playing.value
+let resume = initial.playing
 
 watch(view, (now, before) => {
   if (now === 'personnaliser') {
@@ -70,9 +79,13 @@ function stored(key: string, fallback: string, exists: (v: string) => boolean) {
 
 const shape = ref(stored('grokbot:forme', DEFAULT_SHAPE, (v) => SHAPE_BY_ID.has(v)))
 const color = ref(stored('grokbot:couleur', DEFAULT_COLOR, (v) => COLOR_BY_ID.has(v)))
+const expression = ref(
+  stored('grokbot:expression', DEFAULT_EXPRESSION, (v) => EXPRESSION_BY_ID.has(v))
+)
 
 watch(shape, (v) => localStorage.setItem('grokbot:forme', v))
 watch(color, (v) => localStorage.setItem('grokbot:couleur', v))
+watch(expression, (v) => localStorage.setItem('grokbot:expression', v))
 
 const current = computed(() => STATES.find((s) => s.id === state.value))
 const order = computed(() => SEQUENCE.map((id) => STATES.find((s) => s.id === id)!))
@@ -112,6 +125,7 @@ const POSES: Record<StateId, number> = {
           :size="210"
           :shape="shape"
           :color="color"
+          :expression="expression"
           :frozen-at="POSES[s.id]"
         />
         <figcaption class="text-xs text-[var(--muted)]">{{ s.label }}</figcaption>
@@ -132,6 +146,7 @@ const POSES: Record<StateId, number> = {
             :size="440"
             :shape="shape"
             :color="color"
+            :expression="expression"
           />
         </div>
 
@@ -158,12 +173,11 @@ const POSES: Record<StateId, number> = {
       </main>
 
       <aside class="w-full lg:shrink-0" :class="view === 'animations' ? 'lg:w-64' : 'lg:w-80'">
-        <h1 class="text-sm font-semibold">Grok bot</h1>
-
         <!-- panneau de declenchement manuel -->
         <template v-if="view === 'animations'">
+          <h1 class="text-sm font-semibold">Grok bot</h1>
           <p class="mt-1 mb-3 text-xs leading-relaxed text-[var(--muted)]">
-            Le lecteur enchaine la sequence ; chaque bouton declenche un etat a la main.
+            Le lecteur enchaîne la séquence ; chaque bouton déclenche un état à la main.
             <a class="underline underline-offset-2" href="#planche">Voir la planche</a>
           </p>
           <div class="flex flex-col gap-0.5">
@@ -188,11 +202,11 @@ const POSES: Record<StateId, number> = {
 
         <!-- personnalisation -->
         <template v-else>
-          <p class="mt-1 mb-4 text-xs leading-relaxed text-[var(--muted)]">
-            La forme choisie remplace le corps au repos. Les animations qui dessinent leur
-            propre forme (le « ! », les points, l'orbite) gardent la leur.
-          </p>
-          <Customizer v-model:shape="shape" v-model:color="color" />
+          <Customizer
+            v-model:shape="shape"
+            v-model:color="color"
+            v-model:expression="expression"
+          />
         </template>
       </aside>
     </div>

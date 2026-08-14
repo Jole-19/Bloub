@@ -3,6 +3,10 @@ import { computed, onBeforeUnmount, onMounted, shallowRef, triggerRef, watch } f
 import { NOTIF_BLUE } from '@/bot/decor'
 import { BotEngine, type BotFrame } from '@/bot/engine'
 import {
+  DEFAULT_EXPRESSION,
+  EXPRESSION_BY_ID
+} from '@/bot/expressions'
+import {
   COLOR_BY_ID,
   DEFAULT_COLOR,
   DEFAULT_SHAPE,
@@ -18,6 +22,8 @@ const props = withDefaults(
     shape?: string
     /** identifiant de couleur du personnalisateur */
     color?: string
+    /** identifiant d'expression de repos du personnalisateur */
+    expression?: string
     /** couleur du fond, utilisee pour la brume de profondeur des particules */
     paper?: string
     /**
@@ -32,6 +38,7 @@ const props = withDefaults(
     size: 320,
     shape: DEFAULT_SHAPE,
     color: DEFAULT_COLOR,
+    expression: DEFAULT_EXPRESSION,
     paper: '#f9f9f9',
     frozenAt: undefined
   }
@@ -46,8 +53,9 @@ const VB = 158
 
 const shapeRadii = computed(() => SHAPE_BY_ID.get(props.shape)?.radii ?? null)
 const ink = computed(() => COLOR_BY_ID.get(props.color)?.hex ?? '#0a0a0c')
+const expression = computed(() => EXPRESSION_BY_ID.get(props.expression) ?? null)
 
-const engine = new BotEngine(R, state.value, shapeRadii.value)
+const engine = new BotEngine(R, state.value, shapeRadii.value, expression.value)
 const frame = shallowRef<BotFrame>(engine.sample(props.frozenAt ?? 0))
 const uid = Math.random().toString(36).slice(2, 8)
 const maskId = `bot-mask-${uid}`
@@ -111,6 +119,11 @@ watch(shapeRadii, (radii) => {
   // on passe l'horloge : le moteur morphe vers la nouvelle forme au lieu de
   // l'appliquer d'un coup
   engine.setShape(radii, clock)
+  redrawFrozen()
+})
+
+watch(expression, (expr) => {
+  engine.setExpression(expr, clock)
   redrawFrozen()
 })
 

@@ -33,6 +33,13 @@ export interface EyeCfg {
   h: number
   /** 1 = ouvert, 0 = ferme */
   open: number
+  /**
+   * Inclinaison propre de la gelule, en degres, positif = le haut part a
+   * droite. Appliquee APRES le repere tangent de la sphere. Sans elle, les deux
+   * yeux penchent forcement du meme cote (le roulis de tete) et la colere comme
+   * la tristesse, qui demandent des inclinaisons en miroir, sont hors de portee.
+   */
+  tilt?: number
 }
 
 export interface Pose {
@@ -173,6 +180,12 @@ export interface StateDef {
    * la qui EST l'animation.
    */
   baseBody: boolean
+  /**
+   * true = l'etat porte le visage "au repos", donc remplacable par l'expression
+   * choisie. Seul `idle` : les autres etats a visage ont une expression relevee
+   * sur la video, c'est precisement ce qu'on reproduit.
+   */
+  baseFace: boolean
   pose(local: number): Pose
 }
 
@@ -187,20 +200,22 @@ export const STATES: StateDef[] = [
   {
     id: 'idle',
     label: 'Repos',
-    hint: 'Boule, yeux gelules inclines, derive du regard et clignements',
+    hint: 'Boule, yeux gélules inclinés, dérive du regard et clignements',
     duration: 2.4,
     morph: 0.45,
     blinkIn: false,
+    baseFace: true,
     baseBody: true,
     pose: () => base()
   },
 
   {
     id: 'thinking',
-    label: 'Reflexion',
-    hint: 'Trois points, onde de pulsation de gauche a droite',
+    label: 'Réflexion',
+    hint: 'Trois points, onde de pulsation de gauche à droite',
     duration: 2.6,
     morph: 0.4,
+    baseFace: false,
     baseBody: false,
     blinkIn: true,
     pose: (t) => {
@@ -227,11 +242,12 @@ export const STATES: StateDef[] = [
 
   {
     id: 'wink',
-    label: "Clin d'oeil",
-    hint: 'Oeil exterieur ferme en tiret, oeil interieur grand ouvert',
+    label: "Clin d'œil",
+    hint: 'Œil extérieur fermé en tiret, œil intérieur grand ouvert',
     duration: 1.6,
     morph: 0.3,
     blinkIn: true,
+    baseFace: false,
     baseBody: true,
     pose: () =>
       base({
@@ -248,11 +264,12 @@ export const STATES: StateDef[] = [
 
   {
     id: 'wide',
-    label: 'Yeux ecarquilles',
+    label: 'Yeux écarquillés',
     hint: 'Yeux deux fois plus grands, regard vers le bas',
     duration: 1.8,
     morph: 0.55,
     blinkIn: true,
+    baseFace: false,
     baseBody: true,
     pose: () =>
       base({
@@ -265,9 +282,10 @@ export const STATES: StateDef[] = [
   {
     id: 'alert',
     label: 'Alerte',
-    hint: "Point d'exclamation penche qui traverse en vibrant",
+    hint: "Point d'exclamation penché qui traverse en vibrant",
     duration: 2.4,
     morph: 0.45,
+    baseFace: false,
     baseBody: false,
     blinkIn: false,
     pose: (t) => {
@@ -300,10 +318,11 @@ export const STATES: StateDef[] = [
   {
     id: 'notify',
     label: 'Notification',
-    hint: 'Pastille bleue sur le contour, encoche creusee, gros yeux ronds',
+    hint: 'Pastille bleue sur le contour, encoche creusée, gros yeux ronds',
     duration: 2.2,
     morph: 0.5,
     blinkIn: true,
+    baseFace: false,
     baseBody: true,
     pose: (t) => {
       // Pop du point bleu : pic a +14 % vers 0.3 s puis stabilisation.
@@ -332,6 +351,7 @@ export const STATES: StateDef[] = [
     hint: "Point d'exclamation vertical, barre tronconique",
     duration: 2,
     morph: 0.45,
+    baseFace: false,
     baseBody: false,
     blinkIn: false,
     pose: () =>
@@ -345,9 +365,10 @@ export const STATES: StateDef[] = [
   {
     id: 'sleep',
     label: 'Veille',
-    hint: 'Reduction en un point qui rebondit verticalement',
+    hint: 'Réduction en un point qui rebondit verticalement',
     duration: 2.4,
     morph: 0.5,
+    baseFace: false,
     baseBody: false,
     blinkIn: false,
     pose: (t) =>
@@ -360,10 +381,11 @@ export const STATES: StateDef[] = [
 
   {
     id: 'egg',
-    label: 'Oeuf',
-    hint: 'Meme hauteur que la boule, retreci en largeur, plus large en bas',
+    label: 'Œuf',
+    hint: 'Même hauteur que la boule, rétréci en largeur, plus large en bas',
     duration: 1.8,
     morph: 0.4,
+    baseFace: false,
     baseBody: false,
     blinkIn: true,
     pose: () =>
@@ -379,9 +401,10 @@ export const STATES: StateDef[] = [
   {
     id: 'hexagon',
     label: 'Hexagone',
-    hint: 'Hexagone pointe en haut, coins tres arrondis',
+    hint: 'Hexagone pointe en haut, coins très arrondis',
     duration: 1.6,
     morph: 0.4,
+    baseFace: false,
     baseBody: false,
     blinkIn: true,
     pose: () =>
@@ -396,9 +419,10 @@ export const STATES: StateDef[] = [
   {
     id: 'play',
     label: 'Lecture',
-    hint: "Triangle arrondi, bouquet d'arcs colores qui le balaie",
+    hint: "Triangle arrondi, bouquet d'arcs colorés qui le balaie",
     duration: 2,
     morph: 0.5,
+    baseFace: false,
     baseBody: false,
     blinkIn: true,
     pose: (t) => {
@@ -423,9 +447,10 @@ export const STATES: StateDef[] = [
   {
     id: 'orbit',
     label: 'Orbite',
-    hint: 'Anneaux arc-en-ciel en orbite 3D, le triangle tourne puis se relache',
+    hint: 'Anneaux arc-en-ciel en orbite 3D, le triangle tourne puis se relâche',
     duration: 3.4,
     morph: 0.6,
+    baseFace: false,
     baseBody: false,
     blinkIn: false,
     pose: (t) => {
@@ -467,10 +492,11 @@ export const STATES: StateDef[] = [
 
   {
     id: 'burst',
-    label: 'Eclatement',
+    label: 'Éclatement',
     hint: 'Le corps se disperse en particules qui spiralent puis se recompose',
     duration: 2.6,
     morph: 0.4,
+    baseFace: false,
     baseBody: false,
     blinkIn: false,
     pose: (t) => {
@@ -488,10 +514,11 @@ export const STATES: StateDef[] = [
 
   {
     id: 'comet',
-    label: 'Comete',
-    hint: 'Le point reste au centre, la trainee arc-en-ciel lui tourne autour',
+    label: 'Comète',
+    hint: 'Le point reste au centre, la traînée arc-en-ciel lui tourne autour',
     duration: 2.4,
     morph: 0.45,
+    baseFace: false,
     baseBody: false,
     blinkIn: false,
     pose: (t) => {

@@ -87,7 +87,7 @@ export interface BotColor {
 /** Palette du personnalisateur d'origine. */
 export const COLORS: BotColor[] = [
   { id: 'encre', label: 'Encre', hex: '#0a0a0c' },
-  { id: 'creme', label: 'Creme', hex: '#f1efe9' },
+  { id: 'creme', label: 'Crème', hex: '#f1efe9' },
   { id: 'brun', label: 'Brun', hex: '#8b5e3c' },
   { id: 'rouge', label: 'Rouge', hex: '#e8483f' },
   { id: 'orange', label: 'Orange', hex: '#f08a24' },

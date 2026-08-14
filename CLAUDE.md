@@ -66,6 +66,17 @@ Les pièges vérifiés, à ne pas « corriger » :
   seul le moteur connaît l'échelle du viewBox et rasterise. Ne pas appeler
   `arcRender` depuis `states.ts`.
 
+- **L'expression de repos est reglable, la silhouette des etats ne l'est pas.**
+  Seul `idle` porte `baseFace: true` : les autres etats a visage (clin d'oeil,
+  yeux ecarquilles, notification) ont une expression relevee sur la video, c'est
+  precisement ce qu'on reproduit.
+- **Une inclinaison ne se voit que sur un oeil allonge.** `EyeCfg.tilt` incline
+  chaque oeil independamment (indispensable a la colere et a la tristesse, qui
+  demandent des inclinaisons en miroir). Mais un oeil dont le rapport
+  largeur/hauteur approche 1 est un cercle : il a la meme allure a tout angle et
+  l'inclinaison est invisible. Piege deja tombe une fois — viser un rapport
+  d'au moins 1.8, ou 0.55 dans l'autre sens.
+
 ## Fichier généré
 
 `src/bot/profiles.ts` est produit par `tools/extract-profiles.py` à partir des
