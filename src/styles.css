@@ -163,6 +163,18 @@ body,
   font-size: clamp(80px, calc((100vw - 7rem) / 3.05), 268px);
   font-weight: 900;
   letter-spacing: -0.045em;
+  /*
+   * Marge a droite DANS la boite, et non un espacement autour.
+   *
+   * `background-clip: text` peint le degrade sur la boite de l'element et le
+   * revele au travers des lettres : tout glyphe qui depasse cette boite n'a donc
+   * aucun degrade a montrer, et `-webkit-text-fill-color: transparent` le rend
+   * purement invisible. Or l'interlettrage negatif retranche 0,045 cadratin apres
+   * le DERNIER glyphe aussi, et la panse droite d'un B depasse deja son avance :
+   * le B final se coupait net, quelle que soit la largeur de la fenetre. C'est le
+   * padding qui elargit la boite du degrade, pas la taille du texte.
+   */
+  padding-right: 0.1em;
   background: linear-gradient(
     180deg,
     rgb(23 32 58 / 0.22) 0%,
