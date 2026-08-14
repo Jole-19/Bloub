@@ -684,15 +684,13 @@ watch(block, () => {
         />
       </div>
 
-      <!-- barre d'outils, dans le coin : compteur, loupe, aperçu -->
+      <!-- barre d'outils, dans le coin : loupe, compteur, aperçu -->
       <div class="flex shrink-0 items-center justify-end gap-4">
+        <ZoomSlider :zoom="zoom" :min="MIN_ZOOM" :max="MAX_ZOOM" @update:zoom="onZoomSlider" />
+
         <p class="text-xs tabular-nums text-[var(--muted)]">
           <span class="text-[var(--ink)]">{{ mmss(at) }}</span> / {{ mmss(total) }}
         </p>
-
-        <ZoomSlider :zoom="zoom" :min="MIN_ZOOM" :max="MAX_ZOOM" @update:zoom="onZoomSlider" />
-
-        <span class="h-4 w-px bg-[var(--line)]" />
 
         <!-- infobulle au survol ET au focus clavier, comme la barre laterale -->
         <span class="group relative flex">
@@ -717,8 +715,7 @@ watch(block, () => {
             class="pointer-events-none absolute bottom-full left-1/2 mb-2 -translate-x-1/2 translate-y-1 rounded-lg bg-[var(--ink)] px-2.5 py-1.5 text-xs whitespace-nowrap text-[var(--paper)] opacity-0 transition group-hover:translate-y-0 group-hover:opacity-100 group-focus-within:translate-y-0 group-focus-within:opacity-100"
             role="tooltip"
           >
-            <span class="font-medium">Aperçu</span>
-            <span class="ml-1.5 opacity-60">L'animation seule</span>
+            Aperçu
           </span>
         </span>
       </div>
