@@ -94,6 +94,29 @@ vidéo, lui, n'a pas bougé : c'est celui du bot, dans `skins.ts` (`encre`,
   l'inclinaison est invisible. Piege deja tombe une fois — viser un rapport
   d'au moins 1.8, ou 0.55 dans l'autre sens.
 
+- **Les libellés ne vivent pas dans `src/bot/`.** Les catalogues (`states.ts`,
+  `skins.ts`, `expressions.ts`) ne portent que des **ids**, et l'affichage résout
+  `t('states.orbit')`. Corollaire : leurs ids sont des **unions littérales**
+  (`ShapeId`, `ColorId`, `ExpressionId`, `StateId`) — pas par coquetterie, mais
+  parce que c'est ce qui fait vérifier **à la compilation** que chaque entrée a sa
+  traduction dans les trois langues. Ajouter une forme sans son libellé ne compile
+  pas.
+- **Un seul état n'est pas relevé sur la vidéo : `swirl`.** C'est la transition
+  d'entrée des réglages, choisie comme `--ink`. Elle est volontairement **hors de
+  `SEQUENCE`** (donc absente de la palette et de la planche, et un test le
+  verrouille), et porte `baseBody` **et** `baseFace` : c'est ce qui lui permet de
+  morpher depuis la forme choisie vers la boule, et de laisser le suivi du regard
+  s'appliquer dès sa première image.
+- **`Look` (engine.ts) n'a pas la même sémantique sur ses deux axes, et c'est
+  voulu.** `yaw` est une direction **absolue** que le moteur mélange à la pose
+  (`mix`) ; `pitchOffset` est un **écart** ajouté. Le lacet doit être absolu parce
+  que seul le moteur connaît la pose *à l'instant t* : un appelant qui
+  compenserait le lacet de l'expression lirait sa valeur d'**arrivée** pendant que
+  le morph est encore en cours, et les yeux sautaient à chaque changement
+  d'humeur. Piège déjà tombé une fois. `spin` est un tour parcouru en chemin —
+  gratuit sur une sphère, et sans effet sur le point d'arrivée puisque `-360°` est
+  le même angle que `0`.
+
 ## Interface
 
 - **Tronquer, c'est `tronque`, pas `truncate`.** L'utilitaire maison (styles.css)
@@ -104,11 +127,63 @@ vidéo, lui, n'a pas bougé : c'est celui du bot, dans `skins.ts` (`encre`,
   sans `m-auto`, la boîte se colle en haut à gauche. Même famille de piège pour
   un `popover`, dont les styles par défaut posent `inset: 0` : tout calage doit
   remettre à `auto` les côtés qu'il n'utilise pas, sinon c'est `top: 0` qui gagne.
+- **La scène est une grille de trois colonnes, et c'est ce qui déplace l'avatar.**
+  `[panneau gauche] [avatar] [panneau droit]` : une seule colonne de panneau a une
+  largeur à la fois, et c'est l'**interpolation des pistes** qui fait glisser
+  l'avatar. Écrit dans `styles.css` et pas en utilitaires parce que les deux états
+  doivent être des valeurs littérales pour que la transition ait de quoi
+  interpoler. Ne pas tenter `order` ni `flex-direction` : ils ne s'animent pas.
+- **Le rognage horizontal est sur `#app`, pas sur `body`.** L'`overflow` du corps
+  est **propagé à la fenêtre** quand la racine est en `visible` : l'y poser ne
+  rogne donc rien. Et `clip` plutôt que `hidden`, sur le seul axe x — `hidden` en
+  ferait un conteneur de défilement, ce qui forcerait `overflow-y` à suivre et
+  couperait le bas du personnalisateur sur une fenêtre basse.
+- **L'URL décrit le lecteur, pas les vues.** `#etat=` n'est écrit que depuis la
+  vue Animations. L'écrire ailleurs déclenchait un `hashchange` qui replaçait la
+  tête de lecture sur les index du montage de l'utilisateur, alors que les
+  réglages jouent le leur : le lecteur restait coincé sur son état d'entrée.
+
+## Langues
+
+- **La couche i18n est maison (`src/i18n/`), et c'est mesuré, pas dogmatique.**
+  Sur cette chaîne d'outils, `vue-i18n` pèse **+34,4 ko gzip** contre **+0,55 ko**
+  pour ces ~50 lignes, pour 3 langues et ~90 chaînes sans date ni monnaie à
+  formater — et il ne détecte pas les clés inconnues à la compilation, là où
+  `t()` typé le fait. Le jour où il faut du chargement paresseux, plus de dix
+  langues, ou des traducteurs non-devs, la bascule se fait sans toucher aux
+  appelants.
+- **`locales/fr.ts` est la référence, `en.ts` et `zh.ts` sont typées
+  `typeof fr`** : une clé oubliée est une erreur de compilation nommée. **Surtout
+  pas de `as const` sur `fr.ts`** — chaque valeur deviendrait son propre type
+  littéral et *toutes* les traductions seraient refusées.
+- **La détection ne s'écrit pas dans le stockage.** Seul un choix **explicite** y
+  va (`grokbot:langue`). Sans cette distinction, un premier passage depuis
+  l'étranger figerait cette langue pour toujours.
+- **Les guillemets, espaces et ponctuations appartiennent à la traduction**, pas
+  au code : le français veut « … » avec insécables, l'anglais "…", le chinois de
+  la ponctuation pleine largeur et pas d'espace avant ses unités. Un composant qui
+  ajoute un `« ` casse deux langues sur trois. Même règle pour les nombres :
+  `Intl` s'en charge (`nombre`, `pourcentage`, `secondes`), jamais un
+  `.replace('.', ',')`.
+- **`src/ui/timeline.ts` est pur : pas de mise en forme localisée dedans.** Les
+  durées passent par `secondes` / `secondesCourtes` de `@/i18n`, qui a la langue
+  courante. Seul `mmss` y reste — il n'a ni unité ni séparateur décimal.
+- **Un montage sans nom est le montage d'amorce.** `defaultCycle()` a
+  `name: ''`, et l'affichage résout `nomDeCycle()` : c'est ce qui lui fait suivre
+  la langue. Y écrire « Cycle par défaut » le figerait, le nom partant au
+  `localStorage` dès la première visite.
 
 ## Fichier généré
 
 `src/bot/profiles.ts` est produit par `tools/extract-profiles.py` à partir des
 images de la vidéo (voir README). Ne pas l'éditer à la main ; le régénérer.
+
+`public/favicon.svg` n'est pas un dessin approchant : le cercle et les **deux
+matrices d'yeux** sont ceux que rend `engine.sample(1)` sur `idle`. D'où l'œil de
+droite plus étroit que celui de gauche (0,64 contre 0,87) — c'est la compression
+de profondeur, pas une faute de frappe. Les `favicon.ico` et
+`apple-touch-icon.png` en sont rasterisés (le `.ico` reste nécessaire : Safari ne
+lit le SVG qu'à partir de la version 26, iOS pas avant 18.7).
 
 ## URLs utiles
 
