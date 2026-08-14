@@ -36,6 +36,11 @@ Les pièges vérifiés, à ne pas « corriger » :
 - Dans l'état comète, le point **ne se déplace pas** : la traînée l'orbite.
 - Au repos l'avatar est **immobile** : pas de flottement à ajouter.
 
+Une seule exception, et elle est volontaire : **`--ink` (styles.css) est la
+couleur de l'interface, choisie, pas relevée** — un bleu nuit. Le noir de la
+vidéo, lui, n'a pas bougé : c'est celui du bot, dans `skins.ts` (`encre`,
+`#0a0a0c`). Retoucher l'un ne touche pas l'autre.
+
 ## Décisions d'architecture
 
 - **`src/bot/` est sans framework et sans horloge.** `engine.sample(t)` est une
@@ -45,6 +50,15 @@ Les pièges vérifiés, à ne pas « corriger » :
   rien muter non plus** : purger un état « périmé » pendant la lecture (ce qui
   paraît une optimisation innocente) rend le moteur non rejouable — piège déjà
   tombé une fois sur le morph de forme, il y a un test dédié.
+- **Le montage (`cycles.ts`) tient ou coupe, il ne met jamais le temps à
+  l'échelle.** Étirer un bloc laisse l'état tourner plus longtemps (ceux qui
+  bouclent font des tours de plus, les autres tiennent leur pose finale) ;
+  le raccourcir le coupe. Multiplier le temps local par une vitesse serait
+  tentant et casserait d'un coup **toutes** les durées relevées. D'où deux
+  planchers : `MIN_BLOCK` (0,6 s — le moteur n'a qu'une case d'historique, un
+  bloc plus court que le morph d'entrée du suivant saute à l'image) et
+  `StateDef.minDuration`, la date où l'animation aboutit, lue dans les
+  constantes de son `pose()` — à renseigner pour tout nouvel état narratif.
 - **Toutes les silhouettes partagent le même échantillonnage angulaire**
   (`PROFILE_SAMPLES`), ce qui rend le morphing trivial (interpolation des
   rayons). Toute nouvelle forme doit passer par un profil radial, ou par

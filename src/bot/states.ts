@@ -169,6 +169,13 @@ export interface StateDef {
   hint: string
   /** duree de maintien quand la sequence complete est jouee */
   duration: number
+  /**
+   * duree en dessous de laquelle l'animation est coupee avant d'aboutir : le
+   * "!" ne revient pas, le corps reste eclate. Elle se lit dans les constantes
+   * de `pose` ci-dessous, elle ne se choisit pas. Absente = l'etat ignore le
+   * temps ou boucle, n'importe quelle duree lui va (voir `MIN_BLOCK`).
+   */
+  minDuration?: number
   /** duree du morph d'entree */
   morph: number
   /** true = l'entree est masquee par un clignement, comme dans la video */
@@ -284,6 +291,8 @@ export const STATES: StateDef[] = [
     label: 'Alerte',
     hint: "Point d'exclamation penché qui traverse en vibrant",
     duration: 2.4,
+    // le "!" revient en place a 1.6 + 0.4
+    minDuration: 2,
     morph: 0.45,
     baseFace: false,
     baseBody: false,
@@ -449,6 +458,8 @@ export const STATES: StateDef[] = [
     label: 'Orbite',
     hint: 'Anneaux arc-en-ciel en orbite 3D, le triangle tourne puis se relâche',
     duration: 3.4,
+    // le corps a fini de se relacher du triangle vers la boule a 1.6 + 0.9
+    minDuration: 2.5,
     morph: 0.6,
     baseFace: false,
     baseBody: false,
@@ -495,6 +506,8 @@ export const STATES: StateDef[] = [
     label: 'Éclatement',
     hint: 'Le corps se disperse en particules qui spiralent puis se recompose',
     duration: 2.6,
+    // le corps est recompose a 1.7 + 0.7
+    minDuration: 2.4,
     morph: 0.4,
     baseFace: false,
     baseBody: false,
@@ -517,6 +530,10 @@ export const STATES: StateDef[] = [
     label: 'Comète',
     hint: 'Le point reste au centre, la traînée arc-en-ciel lui tourne autour',
     duration: 2.4,
+    // le point se recompose a 1.85 + 0.6 = 2.45, soit 0.05 s apres la coupe de
+    // la video : ce reliquat se termine pendant le fondu suivant, comme dans la
+    // reference. On ne descend donc pas sous la duree mesuree.
+    minDuration: 2.4,
     morph: 0.45,
     baseFace: false,
     baseBody: false,
@@ -540,6 +557,28 @@ export const STATES: StateDef[] = [
 export const STATE_BY_ID = new Map(STATES.map((s) => [s.id, s]))
 
 /** Ordre de lecture de la sequence complete, calque sur la video de reference. */
+/**
+ * Date, en temps local, ou chaque etat est le plus lisible : c'est la pose que
+ * montrent les vignettes et la planche. Rendu deterministe, donc comparable
+ * d'une execution a l'autre. Le type force a couvrir tout nouvel etat.
+ */
+export const POSES: Record<StateId, number> = {
+  idle: 1,
+  thinking: 1.1,
+  wink: 0.8,
+  wide: 0.8,
+  alert: 0.75,
+  notify: 0.9,
+  exclaim: 0.8,
+  sleep: 0.45,
+  egg: 0.8,
+  hexagon: 0.8,
+  play: 0.9,
+  orbit: 1.2,
+  burst: 0.45,
+  comet: 1.15
+}
+
 export const SEQUENCE: StateId[] = [
   'idle',
   'thinking',

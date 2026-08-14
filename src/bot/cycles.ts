@@ -1,0 +1,179 @@
+import { SEQUENCE, STATE_BY_ID, type StateId } from './states'
+
+/**
+ * Un cycle est un montage : une suite de blocs, chacun un etat tenu pendant une
+ * duree choisie. C'est la partie "editeur" du dossier, et elle en garde les
+ * regles — donnees pures, aucune horloge, aucun import Vue : le meme cycle doit
+ * pouvoir etre relu par les tests, par le lecteur et par la timeline.
+ *
+ * Un bloc n'a pas d'identifiant : c'est une position dans une liste, la cle de
+ * rendu est l'index. Ca garde le JSON du localStorage lisible et les tests
+ * deterministes.
+ */
+export interface Block {
+  state: StateId
+  duration: number
+}
+
+export interface Cycle {
+  id: string
+  name: string
+  blocks: Block[]
+  /** le cycle releve sur la video : on le duplique, on ne l'edite pas */
+  locked?: boolean
+}
+
+/**
+ * Plancher commun a tous les blocs. Le moteur ne garde qu'une case d'historique
+ * (`BotEngine.setState` ecrase `prev`), donc un bloc plus court que le fondu
+ * d'entree du bloc suivant — 0,6 s pour le plus long, celui d'`orbit` — saute a
+ * l'image au lieu de se fondre.
+ */
+export const MIN_BLOCK = 0.6
+
+/**
+ * Garde-fou d'editeur, pas une mesure : allonger un bloc est sans risque (les
+ * etats saturent leurs rampes et tiennent leur pose finale), mais une piste de
+ * blocs d'une minute n'est plus lisible.
+ */
+export const MAX_BLOCK = 10
+
+/** Pas de la molette et du redimensionnement, en secondes. */
+export const STEP = 0.1
+
+export const DEFAULT_CYCLE_ID = 'defaut'
+
+/** Duree minimale d'un bloc : le plancher moteur, ou la mesure de l'etat. */
+export function minDurationOf(state: StateId): number {
+  return Math.max(MIN_BLOCK, STATE_BY_ID.get(state)?.minDuration ?? MIN_BLOCK)
+}
+
+/** Ramene une duree dans ses bornes et sur le pas, sans trainee de flottants. */
+export function clampDuration(state: StateId, seconds: number): number {
+  const snapped = Math.round(seconds / STEP) * STEP
+  const bounded = Math.min(MAX_BLOCK, Math.max(minDurationOf(state), snapped))
+  return Math.round(bounded * 100) / 100
+}
+
+export function makeBlock(state: StateId): Block {
+  // la duree de reference est celle relevee sur la video pour cet etat
+  return { state, duration: clampDuration(state, STATE_BY_ID.get(state)?.duration ?? 2) }
+}
+
+/**
+ * Le cycle releve sur la video : l'ordre de `SEQUENCE`, chaque etat tenu sa
+ * duree mesuree. C'est la reference, jamais modifiee — on la duplique.
+ */
+export function defaultCycle(): Cycle {
+  return {
+    id: DEFAULT_CYCLE_ID,
+    name: 'Cycle par défaut',
+    locked: true,
+    blocks: SEQUENCE.map(makeBlock)
+  }
+}
+
+export function totalDuration(cycle: Cycle): number {
+  return cycle.blocks.reduce((sum, b) => sum + b.duration, 0)
+}
+
+/** Date de debut d'un bloc dans le cycle. */
+export function offsetOf(cycle: Cycle, index: number): number {
+  let acc = 0
+  for (let i = 0; i < index && i < cycle.blocks.length; i++) acc += cycle.blocks[i]!.duration
+  return acc
+}
+
+/**
+ * Bloc joue a la date `t` et temps ecoule dedans. Au-dela du dernier bloc on
+ * retombe au debut : la lecture boucle. L'appelant verifie que le cycle n'est
+ * pas vide.
+ */
+export function blockAt(cycle: Cycle, t: number): { index: number; elapsed: number } {
+  const total = totalDuration(cycle)
+  if (!cycle.blocks.length || total <= 0) return { index: 0, elapsed: 0 }
+  // le modulo n'est applique que s'il sert : sur une date deja dans le cycle il
+  // n'ajouterait qu'une trainee de flottants au temps ecoule
+  const wrapped = t >= 0 && t < total ? t : ((t % total) + total) % total
+  let acc = 0
+  for (let i = 0; i < cycle.blocks.length; i++) {
+    const end = acc + cycle.blocks[i]!.duration
+    if (wrapped < end) return { index: i, elapsed: wrapped - acc }
+    acc = end
+  }
+  return { index: cycle.blocks.length - 1, elapsed: 0 }
+}
+
+/** Deplace un bloc, en rendant une nouvelle liste (les etats Vue sont remplaces). */
+export function moveBlock(blocks: Block[], from: number, to: number): Block[] {
+  const next = blocks.slice()
+  const [moved] = next.splice(from, 1)
+  if (!moved) return blocks
+  next.splice(Math.min(Math.max(to, 0), next.length), 0, moved)
+  return next
+}
+
+/** `Mon cycle`, `Mon cycle 2`, `Mon cycle 3`... — jamais deux fois le meme nom. */
+export function uniqueName(base: string, cycles: Cycle[]): string {
+  const taken = new Set(cycles.map((c) => c.name))
+  if (!taken.has(base)) return base
+  let n = 2
+  while (taken.has(`${base} ${n}`)) n++
+  return `${base} ${n}`
+}
+
+/** Identifiant sans collision, y compris avec un localStorage bricole a la main. */
+export function nextCycleId(cycles: Cycle[]): string {
+  const taken = new Set(cycles.map((c) => c.id))
+  let n = 1
+  while (taken.has(`c${n}`)) n++
+  return `c${n}`
+}
+
+/* ------------------------------------------------------- lecture du stockage */
+
+function parseBlock(raw: unknown): Block | null {
+  if (typeof raw !== 'object' || raw === null) return null
+  const { state, duration } = raw as { state?: unknown; duration?: unknown }
+  // un etat inconnu vient d'une version anterieure ou d'un stockage bricole
+  if (typeof state !== 'string' || !STATE_BY_ID.has(state as StateId)) return null
+  if (typeof duration !== 'number' || !Number.isFinite(duration)) return null
+  return { state: state as StateId, duration: clampDuration(state as StateId, duration) }
+}
+
+function parseCycle(raw: unknown, seen: Cycle[]): Cycle | null {
+  if (typeof raw !== 'object' || raw === null) return null
+  const { id, name, blocks } = raw as { id?: unknown; name?: unknown; blocks?: unknown }
+  if (typeof id !== 'string' || !id || id === DEFAULT_CYCLE_ID) return null
+  if (typeof name !== 'string' || !name) return null
+  if (!Array.isArray(blocks)) return null
+  const kept = blocks.map(parseBlock).filter((b): b is Block => b !== null)
+  if (!kept.length) return null
+  if (seen.some((c) => c.id === id)) return null
+  // `locked` n'est jamais relu : seul le cycle par defaut, qui n'est pas
+  // stocke, est verrouille. Sinon un stockage bricole rendrait un cycle
+  // impossible a editer sans vider le navigateur.
+  return { id, name, blocks: kept }
+}
+
+/**
+ * Le localStorage est modifiable a la main : on ne lui fait pas confiance, meme
+ * regle que pour le hash de l'URL. Tout ce qui ne se relit pas est jete
+ * silencieusement plutot que de casser l'application au demarrage.
+ */
+export function parseCycles(raw: string | null): Cycle[] {
+  if (!raw) return []
+  let data: unknown
+  try {
+    data = JSON.parse(raw)
+  } catch {
+    return []
+  }
+  if (!Array.isArray(data)) return []
+  const out: Cycle[] = []
+  for (const item of data) {
+    const cycle = parseCycle(item, out)
+    if (cycle) out.push(cycle)
+  }
+  return out
+}

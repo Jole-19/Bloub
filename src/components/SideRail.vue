@@ -22,7 +22,7 @@ const muted = ref<ViewId | null>(null)
 
 <template>
   <nav
-    class="fixed top-1/2 left-4 z-20 -translate-y-1/2 rounded-2xl border border-[var(--line)] bg-white/85 p-1.5 shadow-sm backdrop-blur"
+    class="fixed top-[calc(50%_-_var(--timeline)_/_2)] left-4 z-20 -translate-y-1/2 rounded-2xl border border-[var(--line)] bg-white/85 p-1.5 shadow-sm backdrop-blur"
     aria-label="Sections"
   >
     <ul class="flex flex-col gap-1">

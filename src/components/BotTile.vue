@@ -18,6 +18,7 @@ withDefaults(
     label: string
     selected: boolean
     frozenAt: number
+    disabled?: boolean
     state?: StateId
     shape?: string
     color?: string
@@ -25,6 +26,7 @@ withDefaults(
     size?: number
   }>(),
   {
+    disabled: false,
     state: 'idle',
     shape: DEFAULT_SHAPE,
     color: DEFAULT_COLOR,
@@ -37,10 +39,13 @@ withDefaults(
 <template>
   <button
     type="button"
-    class="flex cursor-pointer flex-col items-center rounded-xl border-2 p-1 transition"
-    :class="selected ? 'border-[var(--ink)]' : 'border-transparent hover:border-[var(--line)]'"
+    class="flex flex-col items-center rounded-xl border-2 p-1 transition enabled:cursor-pointer disabled:opacity-40"
+    :class="
+      selected ? 'border-[var(--ink)]' : 'border-transparent enabled:hover:border-[var(--line)]'
+    "
     :aria-label="label"
     :aria-pressed="selected"
+    :disabled="disabled"
   >
     <GrokBot
       :state="state"

@@ -1,0 +1,448 @@
+<script setup lang="ts">
+import { computed, nextTick, onMounted, ref, watch } from 'vue'
+import CycleMenu from '@/components/CycleMenu.vue'
+import GrokBot from '@/components/GrokBot.vue'
+import {
+  clampDuration,
+  makeBlock,
+  moveBlock,
+  nextCycleId,
+  offsetOf,
+  STEP,
+  totalDuration,
+  uniqueName,
+  type Cycle
+} from '@/bot/cycles'
+import { POSES, STATE_BY_ID } from '@/bot/states'
+
+const props = defineProps<{
+  /** temps ecoule dans le bloc courant, pour la tete de lecture */
+  elapsed: number
+  shape: string
+  color: string
+  expression: string
+}>()
+
+const cycles = defineModel<Cycle[]>('cycles', { required: true })
+const activeId = defineModel<string>('activeId', { required: true })
+const block = defineModel<number>('block', { required: true })
+const playing = defineModel<boolean>('playing', { required: true })
+
+/**
+ * Largeur d'une carte, en pixels par seconde de montage : la duree se lit donc
+ * directement dans la piste. Le zoom multiplie cette echelle — il ne change
+ * jamais le montage, seulement la loupe qu'on pose dessus.
+ */
+const BASE_SCALE = 44
+// le plus petit cran fait tenir le cycle de reference entier dans la piste
+const ZOOMS = [0.5, 0.7, 1, 1.4, 2]
+const zoom = ref(2)
+
+const scale = computed(() => BASE_SCALE * ZOOMS[zoom.value]!)
+const cycle = computed(() => cycles.value.find((c) => c.id === activeId.value) ?? cycles.value[0]!)
+const blocks = computed(() => cycle.value.blocks)
+const editable = computed(() => !cycle.value.locked)
+const total = computed(() => totalDuration(cycle.value))
+const at = computed(() => offsetOf(cycle.value, block.value) + props.elapsed)
+
+const track = ref<HTMLElement | null>(null)
+const renaming = ref(false)
+const nameInput = ref<HTMLInputElement | null>(null)
+/** Debordement de la piste, pour n'afficher les degrades que s'ils servent. */
+const overflow = ref({ left: false, right: false })
+
+function width(index: number) {
+  return blocks.value[index]!.duration * scale.value
+}
+
+function label(index: number) {
+  return STATE_BY_ID.get(blocks.value[index]!.state)?.label ?? '?'
+}
+
+/** `0:04` — les dixiemes changeraient trop vite pour etre lisibles. */
+function mmss(t: number) {
+  const s = Math.max(0, Math.floor(t))
+  return `${Math.floor(s / 60)}:${String(s % 60).padStart(2, '0')}`
+}
+
+function seconds(d: number) {
+  return `${d.toFixed(1).replace('.', ',')} s`
+}
+
+function onScroll() {
+  const el = track.value
+  if (!el) return
+  overflow.value = {
+    left: el.scrollLeft > 4,
+    right: el.scrollLeft + el.clientWidth < el.scrollWidth - 4
+  }
+}
+
+/** La molette verticale fait defiler la piste : elle n'a rien a faire defiler d'autre. */
+function onWheel(e: WheelEvent) {
+  const el = track.value
+  if (!el || el.scrollWidth <= el.clientWidth) return
+  const d = Math.abs(e.deltaX) > Math.abs(e.deltaY) ? e.deltaX : e.deltaY
+  if (!d) return
+  e.preventDefault()
+  el.scrollLeft += d
+}
+
+onMounted(onScroll)
+watch([total, scale, blocks], () => nextTick(onScroll))
+
+/* ---------------------------------------------------------------- montage */
+
+/** Remplace le cycle courant : les cycles sont des valeurs, jamais mutees. */
+function edit(next: Partial<Cycle>) {
+  if (!editable.value) return
+  cycles.value = cycles.value.map((c) => (c.id === cycle.value.id ? { ...c, ...next } : c))
+}
+
+function select(id: string) {
+  activeId.value = id
+  block.value = 0
+}
+
+function onCreate() {
+  // jamais de cycle vide : le lecteur aurait un montage sans rien a jouer
+  const neuf: Cycle = {
+    id: nextCycleId(cycles.value),
+    name: uniqueName('Mon cycle', cycles.value),
+    blocks: [makeBlock('idle')]
+  }
+  cycles.value = [...cycles.value, neuf]
+  select(neuf.id)
+  startRename()
+}
+
+function onRemove(id: string) {
+  const reste = cycles.value.filter((c) => c.id !== id)
+  cycles.value = reste
+  if (id === activeId.value) select(reste[0]!.id)
+}
+
+async function startRename() {
+  if (cycles.value.find((c) => c.id === activeId.value)?.locked) return
+  renaming.value = true
+  await nextTick()
+  nameInput.value?.select()
+}
+
+function commitRename(value: string) {
+  const clean = value.trim()
+  renaming.value = false
+  if (!clean || clean === cycle.value.name) return
+  const autres = cycles.value.filter((c) => c.id !== cycle.value.id)
+  edit({ name: uniqueName(clean, autres) })
+}
+
+function removeBlock(index: number) {
+  // la derniere carte ne part pas : un montage vide n'aurait rien a jouer
+  if (!editable.value || blocks.value.length < 2) return
+  edit({ blocks: blocks.value.filter((_, i) => i !== index) })
+  // le curseur suit : une carte retiree avant lui le decale d'un cran, et il ne
+  // doit jamais pointer au-dela de la piste
+  if (index < block.value) block.value -= 1
+  else if (block.value >= blocks.value.length) block.value = blocks.value.length - 1
+}
+
+/* ------------------------------------------------------ glisser / etirer */
+
+type Drag = { from: number; startX: number; moved: boolean }
+type Resize = { index: number; startX: number; startDuration: number }
+
+const drag = ref<Drag | null>(null)
+const resize = ref<Resize | null>(null)
+
+/** Index de la carte sous une position, en secondes depuis le debut de la piste. */
+function indexAt(t: number) {
+  let acc = 0
+  for (let i = 0; i < blocks.value.length; i++) {
+    acc += blocks.value[i]!.duration
+    if (t < acc) return i
+  }
+  return blocks.value.length - 1
+}
+
+function pointerSeconds(e: PointerEvent) {
+  const box = track.value?.getBoundingClientRect()
+  if (!box) return 0
+  return (e.clientX - box.left + (track.value?.scrollLeft ?? 0)) / scale.value
+}
+
+function onBlockDown(index: number, e: PointerEvent) {
+  ;(e.currentTarget as HTMLElement).setPointerCapture(e.pointerId)
+  drag.value = { from: index, startX: e.clientX, moved: false }
+}
+
+function onBlockMove(e: PointerEvent) {
+  const d = drag.value
+  if (!d) return
+  if (Math.abs(e.clientX - d.startX) > 4) d.moved = true
+  if (!d.moved || !editable.value) return
+  const cible = indexAt(pointerSeconds(e))
+  if (cible === d.from || cible < 0) return
+  // le curseur suit la carte qu'on deplace, sinon la lecture sauterait ailleurs
+  const suivi = block.value === d.from ? cible : block.value
+  edit({ blocks: moveBlock(blocks.value, d.from, cible) })
+  block.value = suivi
+  d.from = cible
+}
+
+function onBlockUp(index: number) {
+  const d = drag.value
+  drag.value = null
+  // un clic sans deplacement, c'est un saut de la tete de lecture
+  if (d && !d.moved) block.value = index
+}
+
+function onResizeDown(index: number, e: PointerEvent) {
+  ;(e.currentTarget as HTMLElement).setPointerCapture(e.pointerId)
+  resize.value = { index, startX: e.clientX, startDuration: blocks.value[index]!.duration }
+}
+
+function onResizeMove(e: PointerEvent) {
+  const r = resize.value
+  if (!r) return
+  setDuration(r.index, r.startDuration + (e.clientX - r.startX) / scale.value)
+}
+
+function setDuration(index: number, seconds: number) {
+  const b = blocks.value[index]
+  if (!b) return
+  const duration = clampDuration(b.state, seconds)
+  if (duration === b.duration) return
+  edit({ blocks: blocks.value.map((old, i) => (i === index ? { ...old, duration } : old)) })
+}
+
+/** Le clavier etire aussi : la poignee est un bouton, pas seulement une zone. */
+function onResizeKey(index: number, delta: number) {
+  setDuration(index, blocks.value[index]!.duration + delta)
+}
+
+// La tete de lecture reste visible quand la piste deborde de la fenetre.
+watch([block, scale], () => {
+  const el = track.value
+  if (!el) return
+  const x = offsetOf(cycle.value, block.value) * scale.value
+  if (x < el.scrollLeft || x + width(block.value) > el.scrollLeft + el.clientWidth) {
+    el.scrollTo({ left: Math.max(0, x - 24), behavior: 'smooth' })
+  }
+})
+
+watch(activeId, () => {
+  renaming.value = false
+})
+</script>
+
+<template>
+  <!--
+    Barre de montage : fixee en bas, sans fond ni cadre — elle doit se lire
+    comme une partie de la page, au meme titre que le panneau de droite, dont
+    elle s'arrete avant la colonne (largeur du panneau + gouttiere + marge).
+    La scene lui reserve sa hauteur (`--timeline`) dans les DEUX vues, sinon
+    l'avatar centre sauterait d'un onglet a l'autre.
+  -->
+  <div
+    class="fixed inset-x-0 bottom-0 z-30 h-[var(--timeline)] px-6 pt-3 pb-5 lg:right-[24.5rem]"
+  >
+    <!-- lecture : flottante au-dessus de la piste, au centre -->
+    <button
+      type="button"
+      class="absolute -top-5 left-1/2 flex h-11 w-11 -translate-x-1/2 cursor-pointer items-center justify-center rounded-full bg-[var(--ink)] text-[var(--paper)] shadow-sm transition hover:scale-105 active:scale-95"
+      :aria-label="playing ? 'Arreter la lecture' : 'Lancer la lecture'"
+      @click="playing = !playing"
+    >
+      <svg v-if="!playing" width="15" height="15" viewBox="0 0 16 16" aria-hidden="true">
+        <path d="M4 2.5 13 8l-9 5.5z" fill="currentColor" />
+      </svg>
+      <svg v-else width="15" height="15" viewBox="0 0 16 16" aria-hidden="true">
+        <rect x="3.5" y="3" width="3.2" height="10" rx="1" fill="currentColor" />
+        <rect x="9.3" y="3" width="3.2" height="10" rx="1" fill="currentColor" />
+      </svg>
+    </button>
+
+    <div class="flex h-full flex-col gap-2">
+      <div class="flex items-center gap-1">
+        <input
+          v-if="renaming"
+          ref="nameInput"
+          class="h-7 w-48 rounded-lg bg-black/5 px-2 text-sm font-medium outline-none"
+          :value="cycle.name"
+          @keydown.enter="commitRename(($event.target as HTMLInputElement).value)"
+          @keydown.esc="renaming = false"
+          @blur="commitRename(($event.target as HTMLInputElement).value)"
+        />
+        <CycleMenu
+          v-else
+          v-model:active-id="activeId"
+          :cycles="cycles"
+          :current="cycle"
+          @create="onCreate"
+          @remove="onRemove"
+        />
+        <button
+          v-if="editable && !renaming"
+          type="button"
+          class="cursor-pointer rounded-lg px-2 py-1 text-xs text-[var(--muted)] transition hover:bg-black/5 hover:text-[var(--ink)]"
+          @click="startRename"
+        >
+          Renommer
+        </button>
+
+        <p class="ml-auto text-xs tabular-nums text-[var(--muted)]">
+          <span class="text-[var(--ink)]">{{ mmss(at) }}</span> / {{ mmss(total) }}
+        </p>
+
+        <!-- loupe : agrandit les cartes, jamais le montage -->
+        <div class="ml-2 flex items-center gap-0.5">
+          <button
+            type="button"
+            class="flex h-6 w-6 cursor-pointer items-center justify-center rounded-md text-[var(--muted)] transition hover:bg-black/5 hover:text-[var(--ink)] disabled:opacity-30 disabled:hover:bg-transparent"
+            aria-label="Dézoomer la piste"
+            :disabled="zoom === 0"
+            @click="zoom = Math.max(0, zoom - 1)"
+          >
+            <svg width="12" height="12" viewBox="0 0 12 12" aria-hidden="true">
+              <path d="M2 6h8" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" />
+            </svg>
+          </button>
+          <button
+            type="button"
+            class="flex h-6 w-6 cursor-pointer items-center justify-center rounded-md text-[var(--muted)] transition hover:bg-black/5 hover:text-[var(--ink)] disabled:opacity-30 disabled:hover:bg-transparent"
+            aria-label="Zoomer la piste"
+            :disabled="zoom === ZOOMS.length - 1"
+            @click="zoom = Math.min(ZOOMS.length - 1, zoom + 1)"
+          >
+            <svg width="12" height="12" viewBox="0 0 12 12" aria-hidden="true">
+              <path
+                d="M6 2v8M2 6h8"
+                stroke="currentColor"
+                stroke-width="1.5"
+                stroke-linecap="round"
+              />
+            </svg>
+          </button>
+        </div>
+      </div>
+
+      <!-- piste -->
+      <div class="relative flex-1">
+        <div
+          ref="track"
+          class="h-full overflow-x-auto overflow-y-hidden [scrollbar-width:none]"
+          @scroll="onScroll"
+          @wheel="onWheel"
+        >
+          <div class="relative h-full" :style="{ width: `${total * scale}px` }">
+            <ul class="flex h-full items-stretch">
+              <!--
+                La largeur du <li> vaut exactement la duree de la carte : la
+                gouttiere est un padding interne, sinon les cartes decaleraient la
+                piste et la tete de lecture ne tomberait plus en face.
+              -->
+              <li
+                v-for="(b, i) in blocks"
+                :key="`${i}-${b.state}`"
+                class="group relative shrink-0 pr-1"
+                :style="{ width: `${b.duration * scale}px` }"
+              >
+                <button
+                  type="button"
+                  class="flex h-full w-full cursor-grab flex-col justify-between overflow-hidden rounded-lg px-1.5 py-1 text-left transition select-none active:cursor-grabbing"
+                  :class="
+                    i === block
+                      ? 'bg-white ring-2 ring-[var(--ink)] ring-inset'
+                      : 'bg-black/[0.045] hover:bg-black/[0.08]'
+                  "
+                  :aria-label="`${label(i)}, ${seconds(b.duration)}`"
+                  :aria-current="i === block ? 'true' : undefined"
+                  @pointerdown="onBlockDown(i, $event)"
+                  @pointermove="onBlockMove"
+                  @pointerup="onBlockUp(i)"
+                  @pointercancel="drag = null"
+                  @keydown.enter.prevent="block = i"
+                  @keydown.space.prevent="block = i"
+                >
+                  <!-- la miniature EST l'identite de la carte, comme la vignette
+                       d'une page : le nom ne s'affiche que s'il reste la place -->
+                  <span class="flex min-w-0 flex-1 items-center justify-center gap-1.5">
+                    <GrokBot
+                      v-if="width(i) > 50"
+                      class="shrink-0"
+                      :state="b.state"
+                      :size="34"
+                      :shape="shape"
+                      :color="color"
+                      :expression="expression"
+                      :paper="i === block ? '#ffffff' : '#f2f2f2'"
+                      :frozen-at="POSES[b.state]"
+                    />
+                    <span v-if="width(i) > 104" class="truncate text-xs leading-tight font-medium">
+                      {{ label(i) }}
+                    </span>
+                  </span>
+                  <span
+                    class="flex items-baseline justify-between gap-1 text-[10px] leading-none tabular-nums"
+                    :class="i === block ? 'font-medium text-[var(--ink)]' : 'text-[var(--muted)]'"
+                  >
+                    <span>{{ i + 1 }}</span>
+                    <span v-if="width(i) > 60" class="truncate">{{ seconds(b.duration) }}</span>
+                  </span>
+                </button>
+
+                <template v-if="editable">
+                  <!-- poignee de duree : bouton a part entiere, donc utilisable au clavier -->
+                  <button
+                    type="button"
+                    class="absolute inset-y-2 right-0.5 w-1 cursor-ew-resize rounded-full bg-[var(--muted)] opacity-0 transition group-hover:opacity-60 hover:opacity-100! focus-visible:opacity-100"
+                    :aria-label="`Durée de ${label(i)}, ${seconds(b.duration)}`"
+                    @pointerdown="onResizeDown(i, $event)"
+                    @pointermove="onResizeMove"
+                    @pointerup="resize = null"
+                    @pointercancel="resize = null"
+                    @keydown.left.prevent="onResizeKey(i, -STEP)"
+                    @keydown.right.prevent="onResizeKey(i, STEP)"
+                  />
+                  <button
+                    v-if="blocks.length > 1"
+                    type="button"
+                    class="absolute top-1 right-2 flex h-4 w-4 cursor-pointer items-center justify-center rounded-full bg-black/10 text-[10px] leading-none text-[var(--ink)] opacity-0 transition group-hover:opacity-100 hover:bg-black/20 focus-visible:opacity-100"
+                    :aria-label="`Retirer ${label(i)}`"
+                    @click="removeBlock(i)"
+                  >
+                    ×
+                  </button>
+                </template>
+                </li>
+            </ul>
+
+            <!--
+              Tete de lecture : seule sa transformation change d'une image a
+              l'autre, et elle vit dans la piste, donc elle defile avec elle.
+              Elle ne s'affiche qu'a l'interieur d'une carte : posee sur le bord
+              gauche, elle n'apprend rien que le cadre de la carte courante ne
+              dise deja, et elle depassait comme une poignee qui n'existe pas.
+            -->
+            <div
+              v-if="playing || elapsed > 0.05"
+              class="pointer-events-none absolute inset-y-0 left-0 w-0.5 rounded-full bg-[var(--ink)]"
+              :style="{ transform: `translateX(${at * scale}px)` }"
+            />
+          </div>
+        </div>
+
+        <!-- degrades de debordement : la piste continue par la -->
+        <div
+          v-if="overflow.left"
+          class="pointer-events-none absolute inset-y-0 left-0 w-10 bg-gradient-to-r from-[var(--paper)] to-transparent"
+        />
+        <div
+          v-if="overflow.right"
+          class="pointer-events-none absolute inset-y-0 right-0 w-10 bg-gradient-to-l from-[var(--paper)] to-transparent"
+        />
+      </div>
+    </div>
+  </div>
+</template>

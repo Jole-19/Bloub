@@ -1,11 +1,24 @@
 @import 'tailwindcss';
 
 :root {
-  /* Fond et encre releves au pixel sur la video de reference. */
+  /* Fond releve au pixel sur la video de reference. */
   --paper: #f9f9f9;
-  --ink: #0a0a0c;
-  --line: #e4e4e4;
-  --muted: #767676;
+  /*
+   * Couleur principale de l'INTERFACE : un bleu nuit choisi, pas releve. Le
+   * noir de la video, lui, n'a pas bouge — c'est celui du bot, dans skins.ts
+   * (`encre`, #0a0a0c). Les deux ne doivent pas etre confondus : changer
+   * celle-ci retouche le decor, changer l'autre casse la ressemblance.
+   */
+  --ink: #17203a;
+  --line: #e3e5ea;
+  --muted: #6e7382;
+
+  /**
+   * Hauteur de la barre de montage. Elle est fixee en bas, donc c'est la scene
+   * qui lui reserve sa place — dans les DEUX vues, sinon l'avatar centre change
+   * de position en passant a la personnalisation.
+   */
+  --timeline: 176px;
 }
 
 html,
