@@ -141,8 +141,13 @@ const POSES: Record<StateId, number> = {
     <SideRail v-model="view" />
 
     <div class="flex min-h-full items-stretch justify-center gap-10 p-8 pl-24 max-lg:flex-col">
-      <!-- scene -->
-      <main class="flex flex-1 flex-col items-center justify-center gap-8">
+      <!-- scene. Sa hauteur ne doit pas dependre du panneau de droite : etiree
+           (items-stretch), elle suivait le panneau de personnalisation, plus
+           haut que la grille d'animations, et l'avatar centre changeait de
+           place d'un onglet a l'autre. -->
+      <main
+        class="flex flex-1 flex-col items-center justify-center gap-8 lg:min-h-[calc(100dvh-4rem)] lg:self-start"
+      >
         <div class="flex aspect-square w-full max-w-[460px] items-center justify-center">
           <GrokBot
             v-model:state="state"
@@ -154,25 +159,37 @@ const POSES: Record<StateId, number> = {
           />
         </div>
 
-        <div v-if="view === 'animations'" class="flex flex-col items-center gap-3">
-          <button
-            type="button"
-            class="flex h-12 w-12 cursor-pointer items-center justify-center rounded-full border border-[var(--line)] bg-white transition hover:border-[var(--ink)] active:scale-95"
-            :aria-label="playing ? 'Arreter la sequence' : 'Lancer la sequence'"
-            @click="playing = !playing"
+        <!--
+          La place du lecteur est reservee dans les deux vues, et son contenu y
+          est pose en absolu : sinon l'avatar, centre dans la colonne, remonte
+          d'un demi-bloc quand on passe en personnalisation (rien en bas), et
+          bougerait encore des que la legende passe sur deux lignes.
+          76px = bouton 48 + gap 12 + une ligne de legende 16.
+        -->
+        <div class="relative h-[76px] w-full">
+          <div
+            v-if="view === 'animations'"
+            class="absolute inset-x-0 top-0 flex flex-col items-center gap-3"
           >
-            <svg v-if="!playing" width="16" height="16" viewBox="0 0 16 16" aria-hidden="true">
-              <path d="M4 2.5 13 8l-9 5.5z" fill="currentColor" />
-            </svg>
-            <svg v-else width="16" height="16" viewBox="0 0 16 16" aria-hidden="true">
-              <rect x="3.5" y="3" width="3.2" height="10" rx="1" fill="currentColor" />
-              <rect x="9.3" y="3" width="3.2" height="10" rx="1" fill="currentColor" />
-            </svg>
-          </button>
-          <p class="text-center text-xs text-[var(--muted)]">
-            <span class="font-medium text-[var(--ink)]">{{ current?.label }}</span>
-            — {{ current?.hint }}
-          </p>
+            <button
+              type="button"
+              class="flex h-12 w-12 cursor-pointer items-center justify-center rounded-full border border-[var(--line)] bg-white transition hover:border-[var(--ink)] active:scale-95"
+              :aria-label="playing ? 'Arreter la sequence' : 'Lancer la sequence'"
+              @click="playing = !playing"
+            >
+              <svg v-if="!playing" width="16" height="16" viewBox="0 0 16 16" aria-hidden="true">
+                <path d="M4 2.5 13 8l-9 5.5z" fill="currentColor" />
+              </svg>
+              <svg v-else width="16" height="16" viewBox="0 0 16 16" aria-hidden="true">
+                <rect x="3.5" y="3" width="3.2" height="10" rx="1" fill="currentColor" />
+                <rect x="9.3" y="3" width="3.2" height="10" rx="1" fill="currentColor" />
+              </svg>
+            </button>
+            <p class="text-center text-xs text-[var(--muted)]">
+              <span class="font-medium text-[var(--ink)]">{{ current?.label }}</span>
+              — {{ current?.hint }}
+            </p>
+          </div>
         </div>
       </main>
 
