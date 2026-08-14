@@ -23,6 +23,12 @@ as a modal: without `m-auto` the box sticks to the top left. Same family of trap
 a `popover`, whose default styles set `inset: 0` — any positioning must reset the
 sides it doesn't use to `auto`, otherwise `top: 0` wins.
 
+Third one, and it is not about the reset: **don't nest a modal `<dialog>` under an
+ancestor that can carry `inert`.** Being promoted to the top layer does not exempt it —
+`inert` applies to the whole subtree, so the box renders and cannot be used. `GifDialog`
+is opened by the export bar but sits *outside* it for exactly this reason, since the bar
+goes `inert` while it is hidden.
+
 ## The scene is a three-column grid, and that's what moves the avatar
 
 `[left panel] [avatar] [right panel]`: only one panel column has a width at a time,

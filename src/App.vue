@@ -746,13 +746,22 @@ watch(
           :inert="nue || barreCachee"
         >
           <ExportBar :etat="etatExport" @exporter="exporte" />
-          <!-- le GIF est le seul format a demander son fond : voir `exporte` -->
-          <GifDialog
-            v-model:open="dialogueGif"
-            v-model:fond="fondGif"
-            @confirm="exporte('gif', true)"
-          />
         </div>
+
+        <!--
+          Le GIF est le seul format a demander son fond (voir `exporte`).
+
+          La boite est HORS de la barre, alors que c'est elle qui l'ouvre : la
+          barre porte `inert` quand elle est masquee, et `inert` s'applique a
+          toute la descendance — y compris a un element passe dans la couche
+          superieure, que rien ne doit pouvoir neutraliser.
+        -->
+        <GifDialog
+          v-if="view === 'personnaliser' && !preview"
+          v-model:open="dialogueGif"
+          v-model:fond="fondGif"
+          @confirm="exporte('gif', true)"
+        />
       </main>
 
       <!-- largeur fixe, identique dans les deux vues : sinon la scene se decale
