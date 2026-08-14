@@ -2,12 +2,13 @@
 import { computed, ref, watch } from 'vue'
 import BotTile from '@/components/BotTile.vue'
 import Customizer from '@/components/Customizer.vue'
-import GrokBot from '@/components/GrokBot.vue'
+import BloubBot from '@/components/BloubBot.vue'
 import Settings from '@/components/Settings.vue'
 import SideRail, { type ViewId } from '@/components/SideRail.vue'
 import Timeline from '@/components/Timeline.vue'
 import { t } from '@/i18n'
 import { HUMEURS } from '@/ui/gaze'
+import { cle } from '@/ui/stockage'
 import { blockAt, blocksWith, defaultCycle, makeBlock, parseCycles, type Cycle } from '@/bot/cycles'
 import { DEFAULT_EXPRESSION, EXPRESSION_BY_ID } from '@/bot/expressions'
 import { COLOR_BY_ID, DEFAULT_COLOR, DEFAULT_SHAPE, SHAPE_BY_ID } from '@/bot/skins'
@@ -41,7 +42,7 @@ const gallery = ref(initial.gallery)
  * remplit la liste, ensuite les montages de l'utilisateur font foi — y compris
  * ses modifications de celui-la.
  */
-const restored = parseCycles(localStorage.getItem('grokbot:cycles'))
+const restored = parseCycles(localStorage.getItem(cle('cycles')))
 const cycles = ref<Cycle[]>(restored.length ? restored : [defaultCycle()])
 
 /**
@@ -69,7 +70,7 @@ function stored(key: string, fallback: string, exists: (v: string) => boolean) {
 }
 
 const activeId = ref(
-  stored('grokbot:cycle', cycles.value[0]!.id, (v) => cycles.value.some((c) => c.id === v))
+  stored(cle('cycle'), cycles.value[0]!.id, (v) => cycles.value.some((c) => c.id === v))
 )
 const block = ref(0)
 const elapsed = ref(0)
@@ -99,10 +100,10 @@ let pending: ReturnType<typeof setTimeout>
 watch(cycles, (list) => {
   clearTimeout(pending)
   pending = setTimeout(() => {
-    localStorage.setItem('grokbot:cycles', JSON.stringify(list))
+    localStorage.setItem(cle('cycles'), JSON.stringify(list))
   }, 250)
 })
-watch(activeId, (v) => localStorage.setItem('grokbot:cycle', v))
+watch(activeId, (v) => localStorage.setItem(cle('cycle'), v))
 
 /* -------------------------------------------------------------------- vues */
 
@@ -163,7 +164,20 @@ window.addEventListener('hashchange', () => {
  * de juger la forme, et c'est aussi ce qui laisse le regard suivre le curseur
  * dans les reglages.
  */
-let resume = initial.playing
+/*
+ * Le lecteur s'ouvre A L'ARRET : arriver sur l'onglet, ce n'est pas demander a
+ * voir le montage jouer — c'est le bouton de lecture qui le demande. Ensuite
+ * `resume` fait son travail, et retrouver l'onglet rend la lecture telle qu'on
+ * l'avait laissee.
+ *
+ * Seule exception, un lien qui NOMME un etat (`#etat=`) : celui-la vise le
+ * lecteur et decrit deja sa lecture, `&stop` etant justement la facon de
+ * l'ouvrir en pause. D'ou `initial.named` et pas `initial.playing` seul.
+ *
+ * L'apercu, lui, lance toujours (`enterPreview`) : on n'y va que pour regarder,
+ * et il n'y a aucune commande a l'ecran pour lancer quoi que ce soit.
+ */
+let resume = initial.named && initial.playing
 let resumeBlock = block.value
 
 /**
@@ -217,22 +231,22 @@ watch(block, (i) => {
 
 /* ------------------------------------------------------------------- skins */
 
-const shape = ref(stored('grokbot:forme', DEFAULT_SHAPE, (v) => SHAPE_BY_ID.has(v)))
-const color = ref(stored('grokbot:couleur', DEFAULT_COLOR, (v) => COLOR_BY_ID.has(v)))
+const shape = ref(stored(cle('forme'), DEFAULT_SHAPE, (v) => SHAPE_BY_ID.has(v)))
+const color = ref(stored(cle('couleur'), DEFAULT_COLOR, (v) => COLOR_BY_ID.has(v)))
 const expression = ref(
-  stored('grokbot:expression', DEFAULT_EXPRESSION, (v) => EXPRESSION_BY_ID.has(v))
+  stored(cle('expression'), DEFAULT_EXPRESSION, (v) => EXPRESSION_BY_ID.has(v))
 )
 
-watch(shape, (v) => localStorage.setItem('grokbot:forme', v))
-watch(color, (v) => localStorage.setItem('grokbot:couleur', v))
-watch(expression, (v) => localStorage.setItem('grokbot:expression', v))
+watch(shape, (v) => localStorage.setItem(cle('forme'), v))
+watch(color, (v) => localStorage.setItem(cle('couleur'), v))
+watch(expression, (v) => localStorage.setItem(cle('expression'), v))
 
 /**
  * Nom du produit, en capitales pour le grand mot du pied de page. PAS traduit —
- * c'est une marque. Il n'est pas non plus tire de `t('app.name')`, qui vaut encore
- * « Grok bot » : le renommage du reste de l'application n'est pas fait, il attend
- * une decision. Les autres occurrences a reprendre le jour venu : `index.html`
- * (title, description, og:*) et `app.name` / `app.title` dans les trois locales.
+ * c'est une marque. Les capitales sont un logotype propre a ce pied de page : en
+ * prose le nom s'ecrit « bloub », tout en minuscules, et c'est cette forme que
+ * portent `app.name` et `app.title` dans les trois locales. La constante est donc
+ * ecrite ici plutot que tiree de `t('app.name')`, qui n'a pas la meme casse.
  */
 const NOM = 'BLOUB'
 
@@ -291,7 +305,7 @@ function addBlock(id: StateId) {
  * Deplacement de la tete de lecture depuis la regle. Le lecteur est le seul a
  * pouvoir recaler le moteur (il tient l'horloge), d'ou l'appel direct.
  */
-const bot = ref<InstanceType<typeof GrokBot> | null>(null)
+const bot = ref<InstanceType<typeof BloubBot> | null>(null)
 
 function onSeek(t: number) {
   const { index, elapsed: offset } = blockAt(cycle.value.blocks, t)
@@ -328,7 +342,7 @@ watch(
     </a>
     <div class="mt-4 grid grid-cols-[repeat(auto-fill,minmax(210px,1fr))] gap-3">
       <figure v-for="s in order" :key="s.id" class="flex flex-col items-center">
-        <GrokBot
+        <BloubBot
           :state="s.id"
           :size="210"
           :shape="shape"
@@ -422,7 +436,7 @@ watch(
             view === 'reglages' && !preview && 'avatar--geant'
           ]"
         >
-          <GrokBot
+          <BloubBot
             ref="bot"
             class="h-auto max-w-full"
             v-model:state="state"

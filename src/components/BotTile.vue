@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import GrokBot from '@/components/GrokBot.vue'
+import BloubBot from '@/components/BloubBot.vue'
 import { DEFAULT_EXPRESSION } from '@/bot/expressions'
 import { DEFAULT_COLOR, DEFAULT_SHAPE } from '@/bot/skins'
 import type { StateId } from '@/bot/states'
@@ -42,7 +42,7 @@ withDefaults(
     :aria-label="label"
     :aria-pressed="selected"
   >
-    <GrokBot
+    <BloubBot
       :state="state"
       :size="size"
       :shape="shape"

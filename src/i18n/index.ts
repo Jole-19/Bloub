@@ -1,4 +1,5 @@
 import { computed, ref, watchEffect } from 'vue'
+import { cle } from '@/ui/stockage'
 import { formePlurielle, interpoler } from './format'
 import { choisirLangue, estLangue, type Langue, tagDe } from './langues'
 import fr from './locales/fr'
@@ -24,7 +25,7 @@ type Chemins<T, P extends string = ''> = {
 
 export type Cle = Chemins<typeof fr>
 
-const CLE_STOCKAGE = 'grokbot:langue'
+const CLE_STOCKAGE = cle('langue')
 
 const courante = ref<Langue>(
   choisirLangue(localStorage.getItem(CLE_STOCKAGE), navigator.languages ?? [navigator.language])

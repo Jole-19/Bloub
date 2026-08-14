@@ -1,4 +1,4 @@
-# grok-bot — notes pour Claude
+# bloub — notes pour Claude
 
 ## Stack et commandes
 
@@ -139,6 +139,13 @@ vidéo, lui, n'a pas bougé : c'est celui du bot, dans `skins.ts` (`encre`,
 
 ## Interface
 
+- **Les icônes de l'interface viennent d'une bibliothèque, pas du crayon.** Les
+  tracés de `SideRail.vue` et `Timeline.vue` sont recopiés tels quels depuis des
+  paquets Iconify (Solar, et Remix pour la palette). Aucune dépendance n'est
+  installée, donc `package.json` ne le signale pas — et la règle « tout est
+  relevé » ci-dessus ne s'applique PAS ici. Pour en ajouter ou en changer,
+  reprendre le corps du `<symbol>` dans `@iconify-json/<paquet>` : ne pas
+  redessiner à la main (essayé, rejeté) ni « recentrer » leurs coordonnées.
 - **Tronquer, c'est `tronque`, pas `truncate`.** L'utilitaire maison (styles.css)
   coupe au mot et colle les points au texte ; `truncate` coupe au milieu d'un mot
   et laisse une espace avant les points quand la coupe tombe entre deux mots.
@@ -165,6 +172,16 @@ vidéo, lui, n'a pas bougé : c'est celui du bot, dans `skins.ts` (`encre`,
   faisait rogner sans rien avoir à faire défiler. D'où
   `grid-template-rows: minmax(0, 1fr)` sur la scène — c'est lui qui rend la
   hauteur définie et arme l'`overflow-y`.
+- **La place de la barre de montage n'est réservée que dans la vue Animations.**
+  Réservée dans toutes les vues (un `padding-bottom` sur la scène), elle prenait
+  236 px au panneau de droite au profit d'un vide que rien ne remplissait : le
+  personnalisateur défilait sous un tiers d'écran blanc. Ce que cette réserve
+  tenait *aussi* — l'avatar et le panneau des réglages, qui ne doivent pas se
+  recentrer d'un onglet à l'autre — est porté par ces deux colonnes elles-mêmes,
+  sous la forme de la même hauteur de bande
+  (`100dvh - 3rem - var(--timeline)`) : c'est pour ça que le panneau des réglages
+  est en `self-start` + centrage interne et non en `self-center`, un centrage sur
+  la colonne le ferait descendre de cent pixels dès qu'elle va jusqu'en bas.
 - **Le grand mot du pied de page est `absolute`, pas `fixed`.** `#app` fait
   exactement la hauteur de la fenêtre, donc le bas est le même — mais un élément
   fixe est *sorti* du document et ne suit pas le rebond élastique quand on tente
@@ -192,7 +209,7 @@ vidéo, lui, n'a pas bougé : c'est celui du bot, dans `skins.ts` (`encre`,
   pas de `as const` sur `fr.ts`** — chaque valeur deviendrait son propre type
   littéral et *toutes* les traductions seraient refusées.
 - **La détection ne s'écrit pas dans le stockage.** Seul un choix **explicite** y
-  va (`grokbot:langue`). Sans cette distinction, un premier passage depuis
+  va (`bloub:langue`). Sans cette distinction, un premier passage depuis
   l'étranger figerait cette langue pour toujours.
 - **Les guillemets, espaces et ponctuations appartiennent à la traduction**, pas
   au code : le français veut « … » avec insécables, l'anglais "…", le chinois de

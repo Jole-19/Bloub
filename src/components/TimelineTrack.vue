@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { computed, nextTick, onMounted, ref, watch } from 'vue'
 import BlockPicker from '@/components/BlockPicker.vue'
-import GrokBot from '@/components/GrokBot.vue'
+import BloubBot from '@/components/BloubBot.vue'
 import {
   clampDuration,
   moveBlock,
@@ -356,7 +356,7 @@ function onRulerMove(e: PointerEvent) {
                    d'une page : le nom n'apprendrait rien de plus, il ne reste
                    que dans l'etiquette du bouton, pour le lecteur d'ecran -->
               <span class="flex min-w-0 flex-1 items-center justify-center">
-                <GrokBot
+                <BloubBot
                   v-if="width(i) > 44"
                   class="shrink-0"
                   :state="b.state"

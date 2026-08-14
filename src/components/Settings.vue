@@ -2,7 +2,12 @@
 import { computed } from 'vue'
 import { langue, LANGUES, t } from '@/i18n'
 
-/** Comptes de l'auteur. Le depot passe en public avec la mise en ligne. */
+/**
+ * Comptes de l'auteur. Le depot passe en public avec la mise en ligne.
+ *
+ * L'URL garde le nom « grok-bot » : le depot n'est pas encore renomme, cette
+ * adresse suivra le jour ou il le sera.
+ */
 const X = 'https://x.com/worlz_'
 const GITHUB = 'https://github.com/jeremy-prt/grok-bot'
 

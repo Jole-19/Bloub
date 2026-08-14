@@ -1,13 +1,14 @@
-# grok-bot
+# bloub
 
-Recréation en SVG animé de l'avatar du bot Grok (x.ai/bot) : **une seule forme
-noire pleine** qui morphe entre 14 états, **deux formes blanches** pour les yeux
-qui morphent indépendamment, sur fond blanc. Aucune librairie d'animation.
+**bloub** est une recréation en SVG animé de l'avatar du bot de x.ai (x.ai/bot) :
+**une seule forme noire pleine** qui morphe entre 14 états, **deux formes
+blanches** pour les yeux qui morphent indépendamment, sur fond blanc. Aucune
+librairie d'animation.
 
 ```bash
 pnpm install
 pnpm dev          # http://localhost:5190
-pnpm test         # 25 tests
+pnpm test         # vitest
 pnpm build        # vue-tsc + vite build
 ```
 
@@ -112,6 +113,6 @@ python tools/extract-profiles.py frames/ > src/bot/profiles.ts
 ## Intégrer le composant
 
 ```vue
-<GrokBot v-model:state="etat" v-model:playing="lecture" :size="440" />
-<GrokBot state="orbit" :size="120" :frozen-at="1.2" />   <!-- image figée -->
+<BloubBot v-model:state="etat" v-model:playing="lecture" :size="440" />
+<BloubBot state="orbit" :size="120" :frozen-at="1.2" />   <!-- image figée -->
 ```

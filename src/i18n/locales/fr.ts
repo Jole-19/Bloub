@@ -13,10 +13,15 @@
  */
 export default {
   app: {
-    /** Nom du produit. Voir aussi le <title> de index.html, qui est statique. */
-    name: 'Grok bot',
-    title: 'Grok bot — avatar SVG animé',
-    botAria: 'Avatar Grok animé'
+    /**
+     * Nom du produit. En minuscules dans les trois langues, ce n'est pas une
+     * coquille : les capitales de `NOM` (App.vue) sont un logotype, pas le nom.
+     * Un nom propre ne se traduit pas non plus. `title` sert de `document.title`.
+     * Voir aussi le <title> de index.html, qui est statique.
+     */
+    name: 'bloub',
+    title: 'bloub — avatar SVG animé',
+    botAria: 'Avatar bloub animé'
   },
 
   gallery: {
@@ -31,7 +36,12 @@ export default {
   },
 
   panel: {
-    animations: 'Animations',
+    /**
+     * Au SINGULIER, comme les trois autres : un titre de grille nomme ce qu'un
+     * clic pose, pas le nombre de vignettes proposees. Le pluriel reste au rail,
+     * qui nomme la vue et non le choix (`rail.animations`).
+     */
+    animations: 'Animation',
     shape: 'Forme',
     expression: 'Expression',
     color: 'Couleur'
