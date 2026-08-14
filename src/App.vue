@@ -8,6 +8,7 @@ import SideRail, { type ViewId } from '@/components/SideRail.vue'
 import Timeline from '@/components/Timeline.vue'
 import { t } from '@/i18n'
 import { HUMEURS } from '@/ui/gaze'
+import { INTRO, INTRO_GAZE, POSE_AT, introDue } from '@/ui/intro'
 import { cle } from '@/ui/stockage'
 import { blockAt, blocksWith, defaultCycle, makeBlock, parseCycles, type Cycle } from '@/bot/cycles'
 import { DEFAULT_EXPRESSION, EXPRESSION_BY_ID } from '@/bot/expressions'
@@ -28,12 +29,48 @@ function readHash() {
     state: known ? asked! : 'idle',
     named: known,
     playing: !params.has('stop'),
-    gallery: params.has('planche')
+    gallery: params.has('planche'),
+    // `#arrivee` : rejouer l'arrivee sans avoir a revenir sur le site. Elle ne se
+    // joue qu'a la VENUE, donc sans ce lien on ne peut pas la revoir de la seance.
+    arrivee: params.has('arrivee')
   }
 }
 
 const initial = readHash()
 const gallery = ref(initial.gallery)
+
+/* ----------------------------------------------------------------- arrivee */
+
+/**
+ * L'arrivee sur le site. Le montage et les quatre raisons de ne pas la jouer sont
+ * dans `@/ui/intro` ; ici on ne fait que lire l'etat du navigateur et brancher.
+ *
+ * « Venir » sur le site, c'est le navigateur qui le sait, pas nous : `navigate`
+ * couvre l'URL saisie, le lien suivi et le nouvel onglet, la ou `reload` et
+ * `back_forward` sont des retours sur une page qu'on avait deja. Rien ne part
+ * donc au stockage — une marque persistante eteindrait l'arrivee pour toujours
+ * apres une seule visite, ce qui n'est pas la demande.
+ *
+ * Le repli sur `navigate` sert aux navigateurs qui ne renseignent pas l'entree :
+ * dans le doute on joue, plutot que de ne jamais rien montrer.
+ */
+// `getEntriesByType` est type sur le `PerformanceEntry` generique, qui n'a pas de
+// `type` : c'est l'entree de navigation qui le porte, d'ou l'annotation.
+const [nav] = performance.getEntriesByType('navigation') as PerformanceNavigationTiming[]
+const navigation = nav?.type ?? 'navigate'
+
+const intro = ref(
+  // `#arrivee` demande explicitement a la voir : il court-circuite la regle de
+  // declenchement, c'est tout son objet — y compris apres rechargement, sinon on
+  // ne pourrait la regarder qu'une fois.
+  initial.arrivee ||
+    introDue({
+      named: initial.named,
+      gallery: initial.gallery,
+      rechargement: navigation !== 'navigate',
+      calme: window.matchMedia('(prefers-reduced-motion: reduce)').matches
+    })
+)
 
 /* ------------------------------------------------------------------ cycles */
 
@@ -89,7 +126,15 @@ if (initial.named) {
 // L'etat est une sortie du lecteur : c'est le bloc courant qui commande. On
 // l'initialise sur ce bloc pour ne pas entrer en morphant depuis un etat qui
 // n'a jamais ete affiche.
-const state = ref<StateId>(cycle.value.blocks[block.value]?.state ?? 'idle')
+//
+// Sauf a l'arrivee, qui part du REPOS quel que soit le montage de l'utilisateur :
+// la boule doit PARAITRE deja telle qu'elle restera, sans rien morpher. Prendre
+// le premier bloc du montage ferait dependre la premiere image de ce que
+// l'utilisateur y a range — un eclatement ou une comete se mettraient a morpher
+// vers la boule pendant qu'elle apparait.
+const state = ref<StateId>(
+  intro.value ? 'idle' : (cycle.value.blocks[block.value]?.state ?? 'idle')
+)
 
 /**
  * Ecriture differee : etirer une carte remplace le cycle a chaque mouvement de
@@ -120,15 +165,25 @@ window.addEventListener('keydown', (e) => {
   if (e.key === 'Escape') preview.value = false
 })
 
-/** On regarde une animation : elle se lance, sinon il n'y a rien a voir. */
-function enterPreview() {
-  preview.value = true
-  playing.value = true
-}
+/**
+ * L'apercu commande la lecture DANS LES DEUX SENS : on y entre en lecture, on en
+ * sort en pause.
+ *
+ * A l'aller parce qu'on n'y va que pour regarder et qu'aucune commande n'y est
+ * affichee — arriver sur une image fixe n'aurait aucun sens. Au retour parce
+ * qu'on revient EDITER : laisser le montage defiler sous le curseur pendant qu'on
+ * redimensionne une carte, c'est se battre contre la tete de lecture.
+ *
+ * Un watcher plutot que deux appels dans les gestionnaires : on quitte l'apercu
+ * par le bouton ET par Echap, et l'un des deux finirait par etre oublie.
+ */
+watch(preview, (on) => {
+  playing.value = on
+})
 // Meme regle qu'au changement de vue : on ne joue pas la sequence en
 // personnalisation, sinon la forme est illisible. Le watcher ne se declenchant
 // qu'au changement, il faut l'appliquer aussi a l'initialisation.
-const playing = ref(initial.playing && view.value === 'animations')
+const playing = ref(intro.value || (initial.playing && view.value === 'animations'))
 
 // L'URL est partageable, donc elle suit l'etat ET la lecture. replace et pas
 // push : on ne veut pas un cran d'historique par etat.
@@ -144,6 +199,17 @@ watch([state, playing], ([id, on]) => {
 
 window.addEventListener('hashchange', () => {
   const next = readHash()
+  /*
+   * L'arrivee met en scene l'OUVERTURE de la page : la rejouer a chaud
+   * demanderait de remonter tout le decor — panneaux refermes, lecteur rembobine,
+   * apparition CSS re-armee. On recharge, ce qui la rejoue exactement comme un
+   * visiteur la verrait. Un changement de hash seul ne recharge pas, d'ou ce cas
+   * explicite : sans lui, taper `#arrivee` ne faisait rien du tout.
+   */
+  if (next.arrivee && !initial.arrivee) {
+    location.reload()
+    return
+  }
   gallery.value = next.gallery
   if (next.gallery) return
   // Seul un lien qui NOMME un etat deplace la lecture. Sans ce garde, revenir
@@ -198,11 +264,16 @@ const REST = [makeBlock('idle')]
 const ENTREE = [makeBlock('swirl'), makeBlock('idle')]
 
 const played = computed(() => {
+  if (intro.value) return INTRO
   if (view.value === 'animations') return cycle.value.blocks
   return view.value === 'reglages' ? ENTREE : REST
 })
 
 watch(view, (now, before) => {
+  // Changer de vue interrompt l'arrivee : elle n'a de sens que sur la page
+  // d'accueil, ou elle depose la boule a sa place. Seul un lien `#etat=` suivi
+  // pendant ces deux secondes peut y arriver, mais alors c'est lui qui commande.
+  intro.value = false
   // On ne memorise la position qu'en QUITTANT le lecteur : passer de la
   // personnalisation aux reglages ne doit pas ecraser la position gardee par le
   // zero qu'on vient d'y poser.
@@ -221,13 +292,52 @@ watch(view, (now, before) => {
 })
 
 /**
- * L'orbite d'entree ne se joue qu'une fois : des que le lecteur atteint le bloc
- * de repos, on coupe l'enchainement. Sans ca le montage bouclerait et la vue
+ * Une entree ne se joue qu'une fois : des que le lecteur atteint son bloc de
+ * repos, on coupe l'enchainement. Sans ca le montage bouclerait et la vue
  * rejouerait son entree indefiniment.
+ *
+ * Pour l'arrivee sur le site, le dernier bloc rend simplement la main : la mise
+ * en place, elle, a eu lieu bien avant (voir `nue` ci-dessous). Le montage joue
+ * redevient du meme coup celui de la vue — le lecteur se recale alors sur son
+ * unique bloc de repos, ce qui est sans effet visible puisqu'on y est deja et que
+ * `setState` ignore un etat inchange : le fondu du clin d'oeil vers le repos,
+ * lui, continue.
  */
 watch(block, (i) => {
+  if (intro.value) {
+    if (i >= INTRO.length - 1) {
+      intro.value = false
+      playing.value = false
+    }
+    return
+  }
   if (view.value === 'reglages' && i > 0) playing.value = false
 })
+
+/**
+ * La boule est-elle encore seule en scene ?
+ *
+ * Ce n'est pas un second drapeau a tenir a jour : c'est la POSITION DU LECTEUR
+ * qui le dit. Tant qu'il est sur le premier bloc, la boule parait ; des qu'il
+ * entre dans le clin d'oeil, l'interface est la. Autrement dit c'est le
+ * clignement d'entree de ce bloc qui declenche la mise en place, et il la MASQUE
+ * — les yeux sont fermes pendant que la page bouge et que le regard rejoint la
+ * pose du clin d'oeil. Deplacer la mise en place a la fin du montage, c'est
+ * ramener les trois mouvements en meme temps et a decouvert.
+ *
+ * Le montage, lui, continue apres ce pivot : `intro` reste vrai jusqu'au dernier
+ * bloc, sinon `played` changerait sous le lecteur et couperait le clin d'oeil a
+ * l'image ou il commence.
+ */
+const nue = computed(() => intro.value && block.value < POSE_AT)
+
+/**
+ * Quel panneau est ouvert. Une seule colonne a une largeur a la fois, et tant que
+ * la boule est seule aucune des deux : c'est en rendant sa largeur au panneau de
+ * droite qu'on la fait glisser a sa place.
+ */
+const gauche = computed(() => !nue.value && view.value === 'reglages')
+const droite = computed(() => !nue.value && view.value !== 'reglages')
 
 /* ------------------------------------------------------------------- skins */
 
@@ -263,13 +373,26 @@ const NOM = 'BLOUB'
  */
 
 /**
- * Dans les reglages la boule redevient RONDE, quelle que soit la forme choisie.
- * L'orbite d'entree se relache sur une sphere — c'est ce que la video montre — et
- * une goutte ou un hexagone en sortie de morph ne se lisent pas comme une boule
- * qui tourne. Le choix de l'utilisateur n'est pas touche, seulement ce qu'on
- * affiche ici : il revient intact des qu'on quitte la vue.
+ * La boule redevient RONDE le temps d'un tour, quelle que soit la forme choisie —
+ * dans les reglages comme a l'arrivee sur le site. Le choix de l'utilisateur
+ * n'est pas touche, seulement ce qu'on affiche : il revient intact ensuite, et il
+ * MORPHE en revenant, ce qui fait de la reprise de sa forme un temps de la mise
+ * en scene plutot qu'un raccord.
+ *
+ * Deux raisons, et la seconde est mesuree :
+ *
+ * - une goutte ou un hexagone en sortie de morph ne se lisent pas comme une boule
+ *   qui tourne, alors que la video montre une sphere ;
+ * - surtout, les yeux sont recolles au contour REEL (`radiusAtAngle`) pour ne pas
+ *   deborder de la silhouette. Sur un cercle ce rayon est constant et le tour est
+ *   lisse ; sur une goutte, les yeux montent et descendent en suivant le profil —
+ *   jusqu'a 25 px d'ecart vertical avec la trajectoire du cercle. Ca se voit
+ *   comme un sautillement, et ce n'est pas corrigeable ailleurs : `radiusAtAngle`
+ *   fait exactement ce pour quoi il est la.
  */
-const forme = computed(() => (view.value === 'reglages' ? DEFAULT_SHAPE : shape.value))
+const forme = computed(() =>
+  view.value === 'reglages' || nue.value ? DEFAULT_SHAPE : shape.value
+)
 
 /** Duree d'une humeur. Assez longue pour qu'on la remarque sans qu'elle agite. */
 const HUMEUR_MS = 4200
@@ -359,7 +482,11 @@ watch(
     <!-- titre de structure : la page n'affiche volontairement aucun titre, mais
          un document sans h1 n'est pas navigable au lecteur d'ecran -->
     <h1 class="sr-only">{{ t('app.name') }}</h1>
-    <SideRail v-if="!preview" v-model="view" />
+    <!-- Pendant l'arrivee la barre reste MONTEE — elle est `fixed`, la demonter
+         ne libere aucune place — mais effacee et surtout inerte : sans ca elle
+         resterait dans l'ordre de tabulation en etant invisible. `|| undefined`
+         parce qu'un `inert="false"` serait vrai pour le navigateur. -->
+    <SideRail v-if="!preview" v-model="view" class="rail" :inert="nue || undefined" />
 
     <!-- Sortie d'apercu : le seul element qui reste a l'ecran avec l'avatar. -->
     <button
@@ -385,7 +512,7 @@ watch(
       :class="[
         preview ? '' : 'pl-24',
         !preview && view === 'animations' && 'pb-[calc(var(--timeline)_+_1rem)]',
-        view === 'reglages' && 'scene--gauche'
+        nue || preview ? 'scene--seule' : view === 'reglages' && 'scene--gauche'
       ]"
     >
       <!--
@@ -407,7 +534,7 @@ watch(
       <aside
         v-if="!preview"
         class="panneau scene__gauche w-full lg:flex lg:h-[calc(100dvh_-_3rem_-_var(--timeline))] lg:w-80 lg:shrink-0 lg:flex-col lg:justify-center lg:self-start lg:-translate-y-12"
-        :class="view === 'reglages' ? 'panneau--ouvert max-lg:order-2' : 'max-lg:hidden'"
+        :class="gauche ? 'panneau--ouvert max-lg:order-2' : 'max-lg:hidden'"
       >
         <Settings />
       </aside>
@@ -433,6 +560,7 @@ watch(
             preview
               ? 'max-w-[min(560px,calc(100dvh_-_6rem))]'
               : 'max-w-[min(460px,calc(100dvh_-_var(--timeline)_-_7rem))]',
+            nue && 'avatar--intro',
             view === 'reglages' && !preview && 'avatar--geant'
           ]"
         >
@@ -449,6 +577,7 @@ watch(
             :color="color"
             :expression="humeur ?? expression"
             :follow="view === 'reglages'"
+            :gaze="intro ? INTRO_GAZE : null"
           />
         </div>
       </main>
@@ -459,7 +588,7 @@ watch(
       <aside
         v-if="!preview"
         class="panneau scene__droite w-full lg:w-80 lg:shrink-0"
-        :class="view === 'reglages' ? 'max-lg:hidden' : 'panneau--ouvert max-lg:order-2'"
+        :class="droite ? 'panneau--ouvert max-lg:order-2' : 'max-lg:hidden'"
       >
         <!-- palette : une vignette s'ajoute a la fin du montage -->
         <template v-if="view === 'animations'">
@@ -513,7 +642,7 @@ watch(
       :color="color"
       :expression="expression"
       @seek="onSeek"
-      @preview="enterPreview"
+      @preview="preview = true"
     />
   </template>
 </template>

@@ -214,6 +214,25 @@ body,
  * En dessous de 64rem la grille n'existe pas : tout s'empile, et il n'y a plus
  * de glissement a animer.
  */
+
+/*
+ * La TRANSITION de l'avatar est declaree ici, hors de la requete de largeur, la
+ * ou ses positions sont dedans. Deux raisons : l'arrivee sur le site fait
+ * apparaitre la boule a toutes les tailles, et une transition redeclaree plus bas
+ * en chasserait l'opacite — une propriete absente de la liste ne transitionne
+ * plus du tout.
+ *
+ * L'opacite prend son temps (0,8 s) : c'est une boule qui parait, pas un element
+ * qui se charge. Elle reste plus courte que la bascule pour que la boule soit
+ * entierement opaque avant d'avoir fini de s'installer — l'inverse donnerait un
+ * fondu qui traine sur une forme deja immobile.
+ */
+.avatar {
+  transition:
+    transform var(--bascule),
+    opacity 0.8s ease-out;
+}
+
 @media (width >= 64rem) {
   /*
    * Sur grand ecran la mise en page est calee sur la fenetre : rien ne doit faire
@@ -257,6 +276,24 @@ body,
   }
 
   /*
+   * La boule SEULE en scene : aucune colonne de panneau. Deux cas, et il fallait
+   * bien que ce soit la meme regle —
+   *
+   * - l'arrivee sur le site, ou c'est le RETOUR a `.scene` (la colonne de droite
+   *   qui reprend ses 20rem) qui fait glisser la boule a sa place ;
+   * - l'apercu, ou les panneaux sont demontes. Sans cette classe la grille leur
+   *   reserve quand meme leur piste — une colonne de 20rem plus sa gouttiere —
+   *   et l'avatar se retrouve centre dans une colonne decalee, donc a 180 px a
+   *   gauche du centre de l'ecran. Demonter un panneau ne retire pas sa piste.
+   *
+   * Les deux gouttieres subsistent et sont egales, donc la colonne du milieu
+   * reste centree au pixel.
+   */
+  .scene--seule {
+    grid-template-columns: 0 minmax(0, 1fr) 0;
+  }
+
+  /*
    * La boule dans les reglages : elle grandit jusqu'a sortir de l'ecran par la
    * droite, et descend assez pour degager le haut de la page : sans cet air
    * au-dessus d'elle, la vue se lit comme une image tronquee et non comme un
@@ -277,7 +314,6 @@ body,
    */
   .avatar {
     transform: translate(0, 0) scale(1);
-    transition: transform var(--bascule);
   }
 
   .avatar--geant {
@@ -321,6 +357,57 @@ body,
        qu'il est encore ecrase */
     transition: opacity 0.35s ease-out 0.2s;
   }
+}
+
+/*
+ * Arrivee sur le site (voir `src/ui/intro.ts` pour le montage et la regle).
+ *
+ * La boule parait seule au centre d'une page vide, a peine plus grande que sa
+ * taille de croisiere, prend le temps de s'installer, puis redescend a l'echelle 1
+ * en glissant vers sa place. Le glissement, lui, n'est pas ici : il vient des
+ * colonnes de `.scene--seule` qui se rouvrent, comme un changement de vue.
+ *
+ * Les ecarts sont volontairement FAIBLES — 0,9 a l'apparition, 1,06 en attente —
+ * la ou un surgissement ample (0,4 puis 1,22) se lisait comme un pop. La boule ne
+ * doit pas jaillir : elle doit PARAITRE, et ce qu'on regarde ensuite est le tour
+ * du regard puis le clignement qui pose l'interface, pas l'echelle.
+ *
+ * Ecrit en `@starting-style` plutot qu'en `@keyframes` : Vue monte toute la page
+ * en JavaScript, donc l'element est bel et bien INSERE, et une transition part
+ * alors de l'etat declare ici. Meme mecanisme que le grand mot du pied de page,
+ * et il a l'avantage de ne rien laisser tourner apres coup.
+ *
+ * Ecrit APRES la requete de largeur, et non dedans : le `transform` doit primer
+ * sur celui que `.avatar` y declare, et l'apparition vaut a toutes les tailles —
+ * sur petit ecran il n'y a pas de colonnes a rouvrir, mais la boule parait quand
+ * meme.
+ */
+.avatar--intro {
+  transform: translate(0, 0) scale(1.06);
+}
+
+@starting-style {
+  .avatar--intro {
+    opacity: 0;
+    /* meme suite de fonctions que l'etat d'arrivee, sinon rien a interpoler */
+    transform: translate(0, 0) scale(0.9);
+  }
+}
+
+/*
+ * La barre laterale pendant l'arrivee. Elle reste montee — elle est `fixed`, la
+ * demonter ne libererait aucune place — mais `inert`, ce qui la sort de l'ordre
+ * de tabulation en meme temps que du clic. L'attribut sert donc de selecteur :
+ * une seule source de verite pour « absente », au lieu d'une classe a tenir en
+ * plus. Elle revient avec le meme retard que `.panneau--ouvert`, pour que tout
+ * le decor se pose d'un seul mouvement.
+ */
+.rail {
+  transition: opacity 0.35s ease-out 0.2s;
+}
+
+.rail[inert] {
+  opacity: 0;
 }
 
 @media (prefers-reduced-motion: reduce) {

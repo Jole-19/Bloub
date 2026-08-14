@@ -137,6 +137,63 @@ vidéo, lui, n'a pas bougé : c'est celui du bot, dans `skins.ts` (`encre`,
   (volet du navigateur masqué) donne `0 / 0` chez l'appelant. L'appelant est
   corrigé, mais le moteur n'a pas à dépendre de la prudence des siens.
 
+## Arrivée sur le site
+
+L'introduction jouée en arrivant (`src/ui/intro.ts`, pur et testé) : la boule
+paraît seule au centre, **ses yeux font un tour complet autour d'elle** — elle a
+l'air de tourner sur elle-même — puis elle glisse à sa place pendant que
+l'interface apparaît autour d'elle.
+
+- **Le montage ne joue QUE le repos, et c'est la leçon la plus chère de cette
+  feature.** Quatre entrées ont été écrites et comparées côte à côte avant d'en
+  garder une. Tout état autre qu'`idle` apporte sa **propre pose de regard**, donc
+  un saut des yeux au changement. Et le clignement censé le masquer ne suffit
+  pas : il dure **0,2 s** quand le fondu d'entrée en dure **0,3** — les yeux se
+  rouvrent en cours de route et ça se lit comme une téléportation (15 px entre
+  deux images, mesuré). Les deux durées sont relevées sur la vidéo, aucune ne se
+  rallonge. Un clin d'œil a été tenté longuement ici, puis écarté pour ça.
+- **Toute l'entrée tient donc dans le script de regard**, pas dans un enchaînement
+  d'états : c'est le seul mécanisme du projet dont on **choisit la durée**
+  (`setLook(look, now, morph)`), donc le seul qui permette un mouvement d'yeux
+  lent. Un fondu d'état, lui, dure ce que la vidéo a mesuré.
+- **La boule est RONDE le temps du tour, quelle que soit la forme choisie**, et
+  elle morphe vers celle de l'utilisateur en rejoignant sa place. Pas par goût :
+  les yeux sont recollés au contour réel (`radiusAtAngle`) pour ne pas déborder de
+  la silhouette. Sur un cercle ce rayon est constant, donc le tour est lisse ; sur
+  une goutte ils suivent le profil et sautillent — **jusqu'à 25 px d'écart
+  vertical** avec la trajectoire du cercle, un test le mesure. Ce n'est pas
+  corrigeable ailleurs : `radiusAtAngle` fait exactement ce pour quoi il est là.
+- **`tourLook` est saccadé au passage du limbe, et ce n'est pas réglable.** 20 px
+  entre deux images : près du bord, un petit angle devient un grand déplacement à
+  l'écran et l'œil disparaît puis reparaît. Ralentir n'y change rien, c'est la
+  trajectoire qui veut ça — c'est assumé, et c'est ce qui fait l'effet.
+- **`intro` et `nue` ne sont pas le même moment.** `intro` dit que le montage
+  d'arrivée est joué ; `nue` (dérivé de l'index du lecteur) que la boule est
+  encore seule en scène. C'est `nue` qui commande la mise en place ET le retour à
+  la forme choisie.
+- **Rien ne part au `localStorage`, et c'est volontaire.** Ce qui distingue
+  « venir sur le site » de « recharger », c'est le navigateur qui le sait :
+  `performance.getEntriesByType('navigation')[0].type`. Une marque persistante
+  éteindrait l'arrivée pour toujours après une seule visite — testé, rejeté, il
+  fallait passer en navigation privée pour la revoir.
+- **Un script de regard doit être amorcé « daté d'un rattrapage plus tôt ».**
+  `engine.setLook(script(0), clock - SCRIPT_MORPH, SCRIPT_MORPH)` : sans ça la
+  première image sort au regard neutre et la seconde sur le script — **127 px**
+  d'un coup pour un script qui commence loin de la pose. Le moteur retourne
+  `lookPrev` tant que le rattrapage n'est pas consommé.
+- **Un script finit à `mix: 0`**, où la pose commande seule : il n'y a alors
+  jamais rien à relâcher, et un relâchement se verrait comme un dernier glissement
+  des yeux juste quand tout devrait être posé.
+- **Ce qu'un script ne peut PAS anticiper : le roulis.** `Look` ne le pilote
+  volontairement pas (la tête penchée est la signature du bot). Chaque état a le
+  sien — le clin d'œil penche à +6,7° quand le repos penche à −13 — donc ces
+  degrés-là sauteraient au changement d'état quoi qu'on fasse. C'est l'argument
+  final en faveur d'une arrivée sans changement d'état.
+- Pas d'arrivée sur `#planche`, sur un lien `#etat=` (il vise le lecteur et
+  décrit déjà sa lecture) ni sous `prefers-reduced-motion`. `#arrivee` la rejoue,
+  et **recharge la page** pour ça : la rejouer à chaud demanderait de remonter
+  tout le décor.
+
 ## Interface
 
 - **Les icônes de l'interface viennent d'une bibliothèque, pas du crayon.** Les
@@ -160,6 +217,15 @@ vidéo, lui, n'a pas bougé : c'est celui du bot, dans `skins.ts` (`encre`,
   l'avatar. Écrit dans `styles.css` et pas en utilitaires parce que les deux états
   doivent être des valeurs littérales pour que la transition ait de quoi
   interpoler. Ne pas tenter `order` ni `flex-direction` : ils ne s'animent pas.
+  **Démonter un panneau ne retire pas sa piste** : la grille lui garde ses 20rem
+  et l'avatar reste centré 180 px trop à gauche. D'où `.scene--seule`, qui annule
+  les deux colonnes — l'arrivée et l'aperçu s'en servent tous les deux, ne pas la
+  restreindre à l'un des deux.
+- **La `transition` de l'avatar est hors de la requête de largeur, ses positions
+  sont dedans.** Les rapatrier ensemble semble plus propre et casse deux choses :
+  l'apparition de l'arrivée vaut à toutes les tailles, et surtout une `transition`
+  redéclarée dans le bloc en dessous **chasse l'opacité** — une propriété absente
+  de la liste ne transitionne plus du tout, donc la boule apparaîtrait d'un coup.
 - **Le rognage horizontal est sur `#app`, pas sur `body`.** L'`overflow` du corps
   est **propagé à la fenêtre** quand la racine est en `visible` : l'y poser ne
   rogne donc rien. Et `clip` plutôt que `hidden`, sur le seul axe x — `hidden` en
@@ -241,6 +307,8 @@ lit le SVG qu'à partir de la version 26, iOS pas avant 18.7).
 
 - `#planche` — les 14 états côte à côte, figés (vérification visuelle rapide).
   C'est le seul chemin sûr : il ne dépend d'aucun montage.
+- `#arrivee` — rejoue l'introduction. Elle ne se joue qu'à la **venue** sur le
+  site, donc sans ce lien on ne peut pas la revoir de la séance.
 - `#etat=<id>&stop` — ouvre un état précis, lecture à l'arrêt. Il cherche l'état
   dans les montages de l'utilisateur, qui sont tous éditables : si celui-ci l'a
   retiré partout, le lien ne s'applique pas.

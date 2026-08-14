@@ -4,7 +4,7 @@ import { NOTIF_BLUE } from '@/bot/decor'
 import { BotEngine, type BotFrame } from '@/bot/engine'
 import { clamp, easings } from '@/bot/math'
 import { t } from '@/i18n'
-import { lookTarget, TURN_TIME } from '@/ui/gaze'
+import { lookTarget, TURN_TIME, type GazeScript } from '@/ui/gaze'
 import {
   DEFAULT_EXPRESSION,
   EXPRESSION_BY_ID
@@ -48,6 +48,12 @@ const props = withDefaults(
      * qu'il y a de cases.
      */
     follow?: boolean
+    /**
+     * Regard scripte de l'arrivee : evalue a chaque image avec le temps ecoule
+     * depuis qu'il a ete pose. Independant de `follow`, qui vise le pointeur —
+     * ici c'est le script qui decide de tout, y compris de sa duree.
+     */
+    gaze?: GazeScript | null
   }>(),
   {
     size: 320,
@@ -57,7 +63,8 @@ const props = withDefaults(
     paper: '#f9f9f9',
     frozenAt: undefined,
     cycle: () => defaultCycle().blocks,
-    follow: false
+    follow: false,
+    gaze: null
   }
 )
 
@@ -209,6 +216,64 @@ function aim() {
   aiming = true
 }
 
+/* ------------------------------------------------- regard d'arrivee */
+
+/** Date d'horloge a laquelle le script de regard a ete pose. */
+let gazeSince = 0
+/** true = un script tourne, donc il y a de quoi relacher. */
+let scripted = false
+
+/**
+ * Rattrapage court, la ou le suivi du pointeur prend celui du moteur : le script
+ * EST l'animation, et laisser le moteur en lisser une seconde par-dessus
+ * retarderait son depart d'un quart de seconde — un script qui commence par
+ * regarder au loin verrait ses yeux partir de la pose, y revenir, puis repartir.
+ *
+ * Non nul quand meme : a zero, `lookAtTime` divise zero par zero a l'image ou la
+ * cible est posee, et un `NaN` s'installe dans le moteur pour de bon.
+ */
+const SCRIPT_MORPH = 1 / 60
+
+/**
+ * Le script decide de tout, y compris de sa duree : on ne fait que lui donner le
+ * temps ecoule. La regle elle-meme est dans `@/ui/gaze`, comme celle du suivi.
+ */
+function scriptedGaze(run: GazeScript) {
+  engine.setLook(run(clock - gazeSince), clock, SCRIPT_MORPH)
+}
+
+/**
+ * Depart et relachement du script. `immediate` parce que la page s'ouvre DEJA en
+ * arrivee — c'est meme son seul usage — et le relachement parce qu'un script
+ * coupe avant sa fin (bloc raccourci, changement de vue) laisserait sinon les
+ * yeux figes la ou il s'est arrete : le moteur GARDE la derniere cible.
+ */
+watch(
+  () => props.gaze,
+  (run) => {
+    if (run) {
+      gazeSince = clock
+      scripted = true
+      /*
+       * Valeur de depart posee DATEE D'UN RATTRAPAGE PLUS TOT, pour qu'elle soit
+       * deja pleinement appliquee a la premiere image.
+       *
+       * Sans ca, le moteur rend la premiere image avec le regard neutre et la
+       * seconde avec celui du script : les yeux sautent d'un coup entre les deux.
+       * Discret pour un script qui commence au repos, spectaculaire pour un qui
+       * commence en regardant au loin — 127 px d'un coup sur une boule de 100 de
+       * rayon, ce qui est exactement le defaut que ces scripts corrigent.
+       */
+      engine.setLook(run(0), clock - SCRIPT_MORPH, SCRIPT_MORPH)
+      return
+    }
+    if (!scripted) return
+    engine.setLook(null, clock)
+    scripted = false
+  },
+  { immediate: true }
+)
+
 function tick(ms: number) {
   raf = requestAnimationFrame(tick)
   // Horloge de scene a delta borne : un onglet masque puis reaffiche reprend
@@ -228,7 +293,10 @@ function tick(ms: number) {
     }
   }
 
+  // Le suivi prime : les deux ecrivent la meme cible, et l'arrivee est terminee
+  // bien avant qu'une vue a suivi ne s'ouvre.
   if (props.follow) aim()
+  else if (props.gaze) scriptedGaze(props.gaze)
 
   frame.value = engine.sample(clock)
   triggerRef(frame)

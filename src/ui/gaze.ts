@@ -1,5 +1,6 @@
 import type { Look } from '@/bot/engine'
 import type { ExpressionId } from '@/bot/expressions'
+import { clamp, easings } from '@/bot/math'
 
 /**
  * Ou le bot regarde quand il suit le curseur. Pur, comme `src/ui/timeline.ts` :
@@ -80,6 +81,56 @@ export const HUMEURS: readonly ExpressionId[] = [
   'fier',
   'blase'
 ]
+
+/* ------------------------------------------------ regards de l'arrivee */
+
+/**
+ * Un regard SCRIPTE : evalue a chaque image avec le temps ecoule depuis le debut
+ * de l'arrivee, en secondes. Le script porte donc sa propre horloge et peut
+ * enchainer plusieurs mouvements — le composant ne fait que l'evaluer et n'a
+ * aucune duree a connaitre.
+ *
+ * REGLE, et c'est elle qui rend un script sans entretien : il doit FINIR a
+ * `mix: 0`, ou la pose de l'etat commande seule. Il n'y a alors jamais rien a
+ * relacher, et ce relachement — qui se verrait sous la forme d'un dernier
+ * glissement des yeux, juste quand tout devrait etre pose — n'existe pas.
+ *
+ * Le type reste general alors qu'il n'y a qu'un script aujourd'hui : quatre ont
+ * ete ecrits et compares cote a cote avant d'en garder un, et c'est cette forme
+ * qui a permis de les essayer sans toucher au moteur.
+ */
+export type GazeScript = (t: number) => Look
+
+/**
+ * « Le tour » : la boule a l'air de tourner sur elle-meme.
+ *
+ * `mix` reste a ZERO du debut a la fin : aucune direction n'est imposee, seul
+ * `spin` fond, ce qui fait passer les yeux DERRIERE la boule avant de les
+ * ramener exactement la ou l'expression choisie les met.
+ *
+ * Ease-in-OUT et non l'ease-out exponentiel du reste du projet : ce n'est pas une
+ * valeur qui se pose, c'est un objet qui tourne. En ease-out, les deux tiers du
+ * tour etaient avales en 0,3 s — un a-coup, pas une rotation.
+ *
+ * Il est VIF au passage du limbe — 20 px entre deux images sur une boule de 100
+ * de rayon — et ce n'est pas un defaut de reglage : pres du bord, un petit angle
+ * devient un grand deplacement a l'ecran, et l'oeil disparait puis reparait de
+ * l'autre cote. Ralentir n'y change rien, c'est la trajectoire qui veut ca, et
+ * c'est justement ce qui fait l'effet. Ne pas chercher a l'adoucir.
+ *
+ * Corollaire indispensable : ce tour ne se joue que sur un CERCLE. Les yeux sont
+ * recolles au contour reel (`radiusAtAngle`), donc sur une forme non circulaire
+ * ils suivent le profil en tournant et sautillent. Voir `forme` dans `App.vue`.
+ */
+export const TOUR_TIME = 1.5
+
+export const tourLook: GazeScript = (t) => ({
+  yaw: 0,
+  pitch: 0,
+  mix: 0,
+  spin: SPIN * (1 - easings.easeInOutCubic(clamp(t / TOUR_TIME))),
+  wander: 1
+})
 
 export interface Aim {
   /** ecart horizontal du pointeur au centre du bot, -1 a 1 (droite positive) */

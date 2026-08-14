@@ -1,8 +1,19 @@
 import { describe, expect, it } from 'vitest'
 import { BotEngine } from '@/bot/engine'
-import { EXPRESSIONS, EXPRESSION_BY_ID } from '@/bot/expressions'
+import { EXPRESSIONS, EXPRESSION_BY_ID, type ExpressionId } from '@/bot/expressions'
 import { SHAPE_BY_ID } from '@/bot/skins'
-import { HUMEURS, lookTarget, PITCH, SPIN, TURN, YAW_MAX, type Aim } from './gaze'
+import { STATE_BY_ID } from '@/bot/states'
+import {
+  HUMEURS,
+  lookTarget,
+  PITCH,
+  SPIN,
+  TOUR_TIME,
+  tourLook,
+  TURN,
+  YAW_MAX,
+  type Aim
+} from './gaze'
 
 const cercle = () => SHAPE_BY_ID.get('cercle')!.radii
 
@@ -104,6 +115,79 @@ describe('le tour sur soi-meme', () => {
     const sansTour = new BotEngine(100, 'idle', cercle(), EXPRESSION_BY_ID.get('neutre')!)
     sansTour.setLook({ yaw: -TURN, pitch: PITCH, mix: 1, spin: 0, wander: 0 }, 0)
     expect(complet).toBe(sansTour.sample(1).eyes[0]!.matrix)
+  })
+})
+
+describe('tour d arrivee sur le site', () => {
+  const bot = (id: ExpressionId) => new BotEngine(100, 'idle', cercle(), EXPRESSION_BY_ID.get(id)!)
+
+  /**
+   * LA regle d'un script de regard, et ce qui le rend sans entretien : il finit a
+   * `mix: 0`, ou la pose de l'etat commande seule. Il n'y a donc rien a relacher —
+   * et un relachement se verrait sous la forme d'un dernier glissement des yeux,
+   * juste au moment ou tout devrait etre pose.
+   */
+  it('rend la main a la pose en finissant', () => {
+    expect(tourLook(TOUR_TIME).mix).toBe(0)
+    expect(tourLook(TOUR_TIME + 5).spin).toBe(0)
+  })
+
+  it('repose les yeux sur l expression choisie, quelle qu elle soit', () => {
+    for (const id of EXPRESSIONS.map((e) => e.id)) {
+      const joue = bot(id)
+      joue.setLook(tourLook(TOUR_TIME), 0)
+      expect(joue.sample(1).eyes[0]!.matrix, id).toBe(bot(id).sample(1).eyes[0]!.matrix)
+    }
+  })
+
+  it('laisse le bot vivre pendant le tour', () => {
+    // la derive n'est pas eteinte : il n'y a pas de pointeur a suivre, donc rien
+    // ne justifie de figer le regard comme le fait `lookTarget`
+    expect(tourLook(TOUR_TIME / 2).wander).toBe(1)
+  })
+
+  it('n impose aucune direction, a aucun moment', () => {
+    // `mix` a zero sur tout le parcours : seul `spin` travaille, ce qui fait
+    // passer les yeux derriere la boule au lieu de les glisser en travers
+    for (const k of [0, 0.25, 0.5, 0.75, 1]) {
+      expect(tourLook(k * TOUR_TIME).mix, `tour ${k}`).toBe(0)
+    }
+  })
+
+  it('le tour part d un tour ENTIER, qui est deja le bon angle', () => {
+    // -360deg est le meme angle que 0 : la premiere image est deja posee juste,
+    // et c'est ce qui fait atterrir le tour sans reglage
+    expect(tourLook(0).spin).toBe(SPIN)
+    const depart = bot('neutre')
+    depart.setLook(tourLook(0), 0)
+    expect(depart.sample(1).eyes[0]!.matrix).toBe(bot('neutre').sample(1).eyes[0]!.matrix)
+  })
+
+  it('le tour fait passer les yeux DERRIERE la boule', () => {
+    // a mi-parcours ils ont franchi le limbe, donc le moteur ne les dessine plus
+    // du tout : c'est la preuve que le tour est un vrai trajet SUR LA SPHERE et
+    // non un glissement en travers du visage
+    const milieu = bot('neutre')
+    milieu.setLook(tourLook(TOUR_TIME / 2), 0)
+    expect(milieu.sample(1).eyes).toHaveLength(0)
+  })
+
+  /**
+   * Pourquoi l'arrivee ne joue QUE le repos, et ce qu'on casserait en y glissant
+   * un etat de plus.
+   *
+   * Un script de regard peut amener les yeux ou il veut, sauf sur un axe : `Look`
+   * ne touche volontairement pas au ROULIS — la tete penchee est la signature du
+   * bot et ne suit ni le curseur ni un script. Or chaque etat a son propre roulis
+   * (le clin d'oeil penche a +6,7deg la ou le repos penche a -13). Ces degres-la
+   * ne s'anticipent pas : ils sautent au changement d'etat, sous un clignement de
+   * 0,2 s qui ne couvre pas un fondu de 0,3.
+   */
+  it('ne peut pas anticiper le roulis, d ou une arrivee sans changement d etat', () => {
+    expect(STATE_BY_ID.get('wink')!.pose(0).gaze.roll).not.toBe(
+      EXPRESSION_BY_ID.get('neutre')!.gaze.roll
+    )
+    expect(tourLook(0)).not.toHaveProperty('roll')
   })
 })
 
