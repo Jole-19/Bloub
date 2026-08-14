@@ -270,6 +270,13 @@ function openPicker() {
   const bouton = addButton.value
   const boite = picker.value
   if (!bouton || !boite) return
+  // au clavier, `Entree` ne declenche pas la fermeture legere (qui ecoute le
+  // pointeur) : sans ce garde, on rouvrirait une palette deja ouverte, et
+  // `showPopover` leve une exception dans ce cas
+  if (boite.matches(':popover-open')) {
+    boite.hidePopover()
+    return
+  }
   const r = bouton.getBoundingClientRect()
   const largeur = 288
   pickerPos.value = {

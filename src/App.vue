@@ -108,7 +108,7 @@ watch(activeId, (v) => localStorage.setItem('grokbot:cycle', v))
 const view = ref<ViewId>(initial.named ? 'animations' : 'personnaliser')
 
 /**
- * Apercu : la scene seule, sans barre latérale, sans panneau ni montage. On en
+ * Apercu : la scene seule, sans barre laterale, sans panneau ni montage. On en
  * sort par Echap ou par le bouton, qui reste le seul element affiche.
  */
 const preview = ref(false)
