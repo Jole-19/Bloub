@@ -430,8 +430,25 @@ function dotAttrs(dot: BotFrame['dots'][number]) {
       />
     </g>
 
-    <g :mask="`url(#${maskId})`" :opacity="frame.bodyAlpha">
-      <rect :x="-VB" :y="-VB" :width="VB * 2" :height="VB * 2" :fill="ink" />
+    <g :opacity="frame.bodyAlpha">
+      <!--
+        Fond opaque a la forme exacte du corps, sous le corps lui-meme.
+
+        Les yeux sont des TROUS perces dans le corps, pas des formes blanches
+        posees dessus : c'est ce qui les fait rogner tout seuls au bord de la
+        silhouette, et ca ne change pas. Mais un trou laisse voir ce qui est
+        dessine derriere — or la moitie arriere des anneaux et les particules de
+        l'eclatement le sont justement, pour etre occultees par le corps. Sans ce
+        fond, un anneau qui passe derriere la boule reapparait DANS les yeux.
+
+        Rempli avec `paper` et non en blanc pur : c'est exactement ce que les yeux
+        laissaient voir jusqu'ici, le fond de la page. Les mettre en blanc les
+        rendrait plus clairs que le fond, ce qui se verrait sur une grande boule.
+      -->
+      <path :d="frame.bodyPath" :fill="props.paper" />
+      <g :mask="`url(#${maskId})`">
+        <rect :x="-VB" :y="-VB" :width="VB * 2" :height="VB * 2" :fill="ink" />
+      </g>
     </g>
 
     <g v-if="!frame.dotsBehind">
