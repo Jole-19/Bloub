@@ -40,13 +40,20 @@ onBeforeUnmount(() => window.removeEventListener('pointerdown', onOutside))
   <div ref="root" class="relative" @keydown.esc="open = false">
     <button
       type="button"
-      class="flex cursor-pointer items-center gap-1.5 rounded-lg px-2 py-1 text-sm font-medium transition hover:bg-black/5"
+      class="flex max-w-56 cursor-pointer items-center gap-1.5 rounded-lg px-2 py-1 text-sm font-medium transition hover:bg-black/5"
       aria-haspopup="menu"
       :aria-expanded="open"
+      :title="current.name"
       @click="open = !open"
     >
-      {{ current.name }}
-      <svg width="10" height="10" viewBox="0 0 10 10" aria-hidden="true" class="text-[var(--muted)]">
+      <span class="truncate">{{ current.name }}</span>
+      <svg
+        width="10"
+        height="10"
+        viewBox="0 0 10 10"
+        aria-hidden="true"
+        class="shrink-0 text-[var(--muted)]"
+      >
         <path
           d="M2 6.5 5 3.5l3 3"
           fill="none"
@@ -68,10 +75,13 @@ onBeforeUnmount(() => window.removeEventListener('pointerdown', onOutside))
         :key="c.id"
         class="group/row flex items-center gap-1"
       >
+        <!-- `min-w-0` sur le bouton : sans lui, un nom long pousse la ligne au
+             lieu d'etre coupe, et deborde du menu avec ses deux actions -->
         <button
           type="button"
           role="menuitem"
-          class="flex flex-1 cursor-pointer items-center gap-2 rounded-lg px-2.5 py-1.5 text-left text-xs transition hover:bg-black/5"
+          class="flex min-w-0 flex-1 cursor-pointer items-center gap-2 rounded-lg px-2.5 py-1.5 text-left text-xs transition hover:bg-black/5"
+          :title="c.name"
           @click="choose(c.id)"
         >
           <span class="w-3 shrink-0 text-[var(--ink)]">{{ c.id === activeId ? '✓' : '' }}</span>
@@ -99,11 +109,20 @@ onBeforeUnmount(() => window.removeEventListener('pointerdown', onOutside))
         <button
           v-if="cycles.length > 1"
           type="button"
-          class="mr-1 flex h-6 w-6 shrink-0 cursor-pointer items-center justify-center rounded-md text-[var(--muted)] opacity-0 transition group-hover/row:opacity-100 hover:bg-black/5 hover:text-[var(--ink)] focus-visible:opacity-100"
+          class="mr-1 flex h-6 w-6 shrink-0 cursor-pointer items-center justify-center rounded-md text-[var(--muted)] opacity-0 transition group-hover/row:opacity-100 hover:bg-black/5 hover:text-[var(--danger)] focus-visible:opacity-100"
           :aria-label="`Supprimer ${c.name}`"
-          @click="emit('remove', c.id)"
+          @click="((open = false), emit('remove', c.id))"
         >
-          ×
+          <svg width="13" height="13" viewBox="0 0 14 14" aria-hidden="true">
+            <path
+              d="M2.8 3.9h8.4M5.5 3.9V2.7h3v1.2M4.1 3.9l.5 7.4h4.8l.5-7.4"
+              fill="none"
+              stroke="currentColor"
+              stroke-width="1.1"
+              stroke-linecap="round"
+              stroke-linejoin="round"
+            />
+          </svg>
         </button>
       </div>
 

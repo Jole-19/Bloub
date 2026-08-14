@@ -3,6 +3,7 @@ import { computed, nextTick, onMounted, ref, watch } from 'vue'
 import CycleMenu from '@/components/CycleMenu.vue'
 import GrokBot from '@/components/GrokBot.vue'
 import BotTile from '@/components/BotTile.vue'
+import ConfirmDialog from '@/components/ConfirmDialog.vue'
 import NameDialog from '@/components/NameDialog.vue'
 import {
   blocksWith,
@@ -64,6 +65,13 @@ const track = ref<HTMLElement | null>(null)
 const naming = ref<{ mode: 'create' | 'rename'; id?: string } | null>(null)
 const nameDraft = ref('')
 const dialogOpen = ref(false)
+/** Montage en attente de confirmation de suppression. */
+const removing = ref<Cycle | null>(null)
+const confirmOpen = ref(false)
+const removingDetail = computed(() => {
+  const n = removing.value?.blocks.length ?? 0
+  return `Ce montage sera perdu, avec ${n === 1 ? 'son animation' : `ses ${n} animations`}.`
+})
 /** Debordement de la piste, pour n'afficher les degrades que s'ils servent. */
 const overflow = ref({ left: false, right: false })
 /**
@@ -224,10 +232,19 @@ function onNamed(name: string) {
   cycles.value = cycles.value.map((c) => (c.id === demande.id ? { ...c, name: unique } : c))
 }
 
-function onRemove(id: string) {
-  const reste = cycles.value.filter((c) => c.id !== id)
+/** Suppression d'un montage : jamais sans confirmation, c'est irreversible. */
+function askRemove(id: string) {
+  removing.value = cycles.value.find((c) => c.id === id) ?? null
+  confirmOpen.value = true
+}
+
+function onRemove() {
+  const cible = removing.value
+  removing.value = null
+  if (!cible) return
+  const reste = cycles.value.filter((c) => c.id !== cible.id)
   cycles.value = reste
-  if (id === activeId.value) select(reste[0]!.id)
+  if (cible.id === activeId.value) select(reste[0]!.id)
 }
 
 const picking = ref(false)
@@ -398,7 +415,7 @@ watch(block, () => {
           :current="cycle"
           @create="askCreate"
           @rename="askRename"
-          @remove="onRemove"
+          @remove="askRemove"
         />
 
         <!-- loupe : agrandit les cartes, jamais le montage -->
@@ -643,6 +660,14 @@ watch(block, () => {
       label="Nom du cycle"
       :submit-label="naming?.mode === 'rename' ? 'Renommer' : 'Créer'"
       @submit="onNamed"
+    />
+
+    <ConfirmDialog
+      v-model:open="confirmOpen"
+      :title="`Supprimer « ${removing?.name} » ?`"
+      :detail="removingDetail"
+      confirm-label="Supprimer"
+      @confirm="onRemove"
     />
   </div>
 </template>

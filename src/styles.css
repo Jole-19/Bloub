@@ -12,6 +12,8 @@
   --ink: #17203a;
   --line: #e3e5ea;
   --muted: #6e7382;
+  /* Rouge d'interface pour les actions destructrices — choisi, comme --ink. */
+  --danger: #d63c34;
 
   /**
    * Hauteur de la barre de montage. Elle est fixee en bas, donc c'est la scene
