@@ -8,8 +8,15 @@ import Settings from '@/components/Settings.vue'
 import SideRail, { type ViewId } from '@/components/SideRail.vue'
 import Timeline from '@/components/Timeline.vue'
 import { t } from '@/i18n'
-import { copie, copieTexte, svgAutonome, telecharge, versPng } from '@/ui/capture'
-import { ACTION_BY_ID, nomFichier, type ActionId, type EtatExport } from '@/ui/export'
+import { copie, copieTexte, svgAutonome, telecharge, versPng, versWebpAnime } from '@/ui/capture'
+import {
+  ACTION_BY_ID,
+  ANIM_IMAGES,
+  ANIM_PAS,
+  nomFichier,
+  type ActionId,
+  type EtatExport
+} from '@/ui/export'
 import { HUMEURS } from '@/ui/gaze'
 import { INTRO, INTRO_GAZE, POSE_AT, introDue } from '@/ui/intro'
 import { cle } from '@/ui/stockage'
@@ -490,23 +497,31 @@ async function exporte(id: ActionId) {
 
   clearTimeout(confirmation)
   etatExport.value = 'occupe'
+  const nom = () => nomFichier(shape.value, expression.value, color.value, action.extension)
   try {
-    const markup = svgAutonome(svg, action.taille)
-    if (action.mode === 'copieImage') {
-      // Le blob part en PROMESSE et non attendu ici : cf. `copie` dans capture.ts.
-      await copie(versPng(markup, action.taille))
-      etatExport.value = 'copie'
-    } else if (action.mode === 'copieTexte') {
-      await copieTexte(markup)
-      etatExport.value = 'copie'
-    } else {
-      const nom = nomFichier(shape.value, expression.value, color.value, action.extension)
-      const fichier =
-        action.extension === 'svg'
-          ? new Blob([markup], { type: 'image/svg+xml' })
-          : await versPng(markup, action.taille)
-      telecharge(fichier, nom)
+    if (action.mode === 'anime') {
+      // L'animation ne part PAS du SVG affiche : elle est rejouee depuis le debut
+      // sur une instance hors ecran. Cf. `imagesDuBot`.
+      const reglages = { shape: shape.value, color: color.value, expression: expression.value }
+      telecharge(await versWebpAnime(reglages, action.taille, ANIM_IMAGES, ANIM_PAS), nom())
       etatExport.value = 'exporte'
+    } else {
+      const markup = svgAutonome(svg, action.taille)
+      if (action.mode === 'copieImage') {
+        // Le blob part en PROMESSE et non attendu ici : cf. `copie` dans capture.ts.
+        await copie(versPng(markup, action.taille))
+        etatExport.value = 'copie'
+      } else if (action.mode === 'copieTexte') {
+        await copieTexte(markup)
+        etatExport.value = 'copie'
+      } else {
+        const fichier =
+          action.extension === 'svg'
+            ? new Blob([markup], { type: 'image/svg+xml' })
+            : await versPng(markup, action.taille)
+        telecharge(fichier, nom())
+        etatExport.value = 'exporte'
+      }
     }
   } catch {
     // Un refus du presse-papiers ou un encodage impossible ne doit pas laisser

@@ -146,7 +146,7 @@ onBeforeUnmount(() => window.removeEventListener('pointerdown', onOutside))
       >
         <!-- solar:copy-linear -->
         <svg
-          v-if="action.mode !== 'telecharge'"
+          v-if="action.mode === 'copieImage' || action.mode === 'copieTexte'"
           width="16"
           height="16"
           viewBox="0 0 24 24"

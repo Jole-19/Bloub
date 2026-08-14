@@ -364,6 +364,14 @@ watch(expression, (expr) => {
 })
 
 /**
+ * Deplacer `frozenAt` redessine. La prop ne servait qu'a poser une vignette une
+ * fois pour toutes, donc personne ne la bougeait ; l'export anime, lui, avance
+ * image par image sur une instance hors ecran. Sans ce watcher elle reste sur sa
+ * premiere image et l'animation exportee ne bouge pas.
+ */
+watch(() => props.frozenAt, redrawFrozen)
+
+/**
  * L'ecoute du pointeur ne vit que le temps du suivi. `immediate` parce que la
  * vue peut s'ouvrir deja en mode suivi ; le garde sur `frozenAt` parce qu'une
  * vignette figee n'a pas de boucle pour consommer la cible, donc rien a ecouter.

@@ -48,18 +48,51 @@ export function viewBoxExport(demi = DEMI_CADRE) {
   return `${-demi} ${-demi} ${demi * 2} ${demi * 2}`
 }
 
-export type ActionId = 'png' | 'svg' | 'copie' | 'copieSvg'
+export type ActionId = 'png' | 'svg' | 'webp' | 'copie' | 'copieSvg'
 
 /** Ce qu'on fait de l'image une fois produite. */
-export type ModeExport = 'telecharge' | 'copieImage' | 'copieTexte'
+export type ModeExport = 'telecharge' | 'anime' | 'copieImage' | 'copieTexte'
 
 export interface ActionExport {
   id: ActionId
   mode: ModeExport
   /** Cote de l'image en pixels. */
   taille: number
-  extension: 'png' | 'svg'
+  extension: 'png' | 'svg' | 'webp'
 }
+
+/**
+ * Cadence de l'animation exportee. Le clignement dure 0,18 s (mesure, `BLINK_DUR`
+ * dans face.ts) : en dessous de 20 images par seconde il ne reste plus assez
+ * d'images pour qu'il se lise comme un clignement plutot que comme un saut.
+ */
+export const ANIM_FPS = 20
+
+/**
+ * Duree capturee. Le premier clignement tombe a 1,4 s puis les suivants toutes
+ * les 1,9 a 4,6 s (`BLINKS`, face.ts) : quatre secondes en contiennent donc
+ * toujours au moins un. Plus court, on exporterait souvent une boule qui se
+ * contente de deriver.
+ *
+ * Il n'y a PAS de boucle sans couture a viser : les periodes de la derive sont
+ * volontairement premieres entre elles pour que le mouvement ne se repete jamais
+ * a l'oeil (`liveliness`, face.ts). Le raccord se verra, c'est le prix de cette
+ * decision-la — et il se voit d'autant moins que le regard derive lentement.
+ */
+export const ANIM_SECONDES = 3
+
+export const ANIM_IMAGES = ANIM_FPS * ANIM_SECONDES
+export const ANIM_PAS = 1 / ANIM_FPS
+
+/**
+ * Cote de l'animation, bien plus petit que celui du PNG : le conteneur WebP anime
+ * ne compresse RIEN entre les images (chacune est autonome), donc le poids est
+ * strictement proportionnel au nombre d'images. Mesure a 384 px : 3,5 ko par
+ * image, soit 290 ko pour quatre secondes — au-dela de ce qu'acceptent les
+ * emojis animes de Discord (256 ko) ou de Slack (128 ko). A 320 px sur trois
+ * secondes on reste dans une taille qui se partage.
+ */
+export const ANIM_TAILLE = 320
 
 /**
  * UNE seule taille de PNG, volontairement : proposer 1024 et 2048 obligeait
@@ -78,6 +111,7 @@ export interface ActionExport {
 export const ACTIONS: ActionExport[] = [
   { id: 'png', mode: 'telecharge', taille: 1024, extension: 'png' },
   { id: 'svg', mode: 'telecharge', taille: DEMI_CADRE * 2, extension: 'svg' },
+  { id: 'webp', mode: 'anime', taille: ANIM_TAILLE, extension: 'webp' },
   { id: 'copie', mode: 'copieImage', taille: 1024, extension: 'png' },
   { id: 'copieSvg', mode: 'copieTexte', taille: DEMI_CADRE * 2, extension: 'svg' }
 ]

@@ -76,15 +76,57 @@ cropping each one separately would put them all back at the same size and break 
 tuning. A test checks the frame contains **every** shape, so adding a wider one moves
 the frame on its own instead of getting clipped.
 
+## The animated WebP needs no dependency, and that's the whole point
+
+The browser already encodes a WebP frame **with its alpha** — `canvas.toBlob('image/webp')`
+returns a file carrying an `ALPH` chunk (or a `VP8L` stream that holds alpha itself). What
+it can't do is chain them. But an animated WebP is only a RIFF container around those same
+streams — `VP8X` + `ANIM` + one `ANMF` per frame — so there is nothing to compress here,
+only to wrap. `anime.ts` does that in pure bytes, node-testable, for **+1.04 kB gzip**
+against the 100–300 kB of a libwebp WASM build.
+
+Two things that are not optional:
+
+- **Quality `1` on `toBlob`, i.e. lossless.** Measured on one frame of the bot: 4116 bytes
+  lossless against 4128 lossy. A flat two-tone fill gives a lossy encoder nothing to win,
+  while it does dirty the edge of the ball. Lossless is free here.
+- **Every frame is marked "do not blend"** (`0x02` in the `ANMF` flags). Our frames have
+  transparent areas; blended, the previous frame stays visible through them and the ball
+  drags a ghost trail behind it. A test locks this bit.
+
+The frames come from an **offscreen** `BloubBot` driven by `frozenAt`, not from the avatar on
+screen: on screen the bot sits at an arbitrary clock time, whereas the export wants a
+reproducible sequence that starts at the beginning. That works because `engine.sample(t)` is
+a pure function of time and because a `BloubBot` given `frozenAt` starts no animation loop
+and no listeners. Same component on screen and in the export — one source of drawing.
+
+`frozenAt` had to be made reactive for this (`watch` in `BloubBot.vue`): the prop only ever
+placed a frozen tile once, so nothing moved it, and the exported animation stayed on its
+first frame.
+
+**Size is strictly proportional to the frame count** — nothing is compressed between frames.
+Measured at 384 px: 3.5 kB per frame, 290 kB for four seconds, past what Discord (256 kB) and
+Slack (128 kB) accept for an animated emoji. Hence 320 px over 3 s: 167 kB for 60 frames.
+
+**There is no seamless loop to chase.** The drift periods in `liveliness` are deliberately
+coprime so the movement never visibly repeats, so the loop point shows. That is the price of
+that decision, and it shows less because the gaze drifts slowly. Duration is set so a blink
+always lands in frame: the first is at 1.4 s, the rest every 1.9–4.6 s.
+
 ## One PNG size, and no GIF
 
 1024 covers every profile-picture spec (Discord 128, X 400, GitHub 500, Slack 512) and
 downscales cleanly. Offering 2048 as well made the user decide something that isn't
 theirs to decide; whoever wants bigger takes the SVG, which has no size.
 
-GIF is ruled out by its **1-bit transparency**: a staircase edge where PNG has 8 bits
-of alpha. That applies to the future animation export too — the candidates there are
-animated WebP or WebM with an alpha channel, not GIF.
+GIF is ruled out **for the still export** by its 1-bit transparency: a staircase edge where
+PNG has 8 bits of alpha.
+
+An animated GIF is still wanted for platform reach (Discord and Slack take GIF as an animated
+avatar, not WebP) and is **not written yet**. It needs a hand-rolled LZW encoder; the palette
+side is easy, since the bot uses very few distinct colours — measured on a frame: 71.4 %
+transparent, 26.7 % body, 1.5 % `paper`, the rest antialiasing — so an exact palette fits
+without dithering. Its edge will be jagged, and that is inherent, not a bug to fix.
 
 ## The SVG is copied as TEXT, the image as a blob
 

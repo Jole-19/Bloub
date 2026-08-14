@@ -10,6 +10,9 @@
  * forme porte son `fill` en hex.
  */
 
+import { createApp, h, nextTick, ref } from 'vue'
+import BloubBot from '@/components/BloubBot.vue'
+import { webpAnime } from './anime'
 import { sansCommentaires, viewBoxExport } from './export'
 
 /**
@@ -41,32 +44,48 @@ export function svgAutonome(svg: SVGSVGElement, taille: number) {
  * Le canvas n'est jamais souille : le SVG du bot n'a ni `<foreignObject>` ni
  * `<image>`, les deux seules choses qui feraient echouer `toBlob`.
  */
-export async function versPng(markup: string, taille: number): Promise<Blob> {
+export async function versBitmap(
+  markup: string,
+  taille: number,
+  type: 'image/png' | 'image/webp' = 'image/png',
+  canvas = document.createElement('canvas')
+): Promise<Blob> {
   const url = URL.createObjectURL(new Blob([markup], { type: 'image/svg+xml' }))
   try {
     const img = new Image()
     img.src = url
     await img.decode()
 
-    const canvas = document.createElement('canvas')
     canvas.width = taille
     canvas.height = taille
     // `alpha` par defaut : c'est ce qui laisse le fond transparent. Le bot
     // s'exporte donc en vignette detachee, posable sur n'importe quel fond.
     const ctx = canvas.getContext('2d')
     if (!ctx) throw new Error('canvas indisponible')
+    // Le canvas est reutilise d'une image a l'autre pour l'export anime : sans
+    // effacement, une image aux yeux fermes garderait les yeux ouverts dessous.
+    ctx.clearRect(0, 0, taille, taille)
     ctx.drawImage(img, 0, 0, taille, taille)
 
     return await new Promise<Blob>((resolve, reject) => {
       canvas.toBlob(
-        (blob) => (blob ? resolve(blob) : reject(new Error('encodage png impossible'))),
-        'image/png'
+        (blob) => (blob ? resolve(blob) : reject(new Error(`encodage ${type} impossible`))),
+        type,
+        // Qualite 1 = SANS PERTE en WebP, et c'est gratuit ici : mesure sur une
+        // image du bot, 4116 octets sans perte contre 4128 avec perte. L'aplat de
+        // deux teintes ne donne rien a gagner a un encodeur avec perte, qui en
+        // revanche salit le bord de la boule. Le flux sans perte porte en plus son
+        // alpha lui-meme, sans chunk `ALPH` separe.
+        1
       )
     })
   } finally {
     URL.revokeObjectURL(url)
   }
 }
+
+/** Raccourci pour l'export fixe. */
+export const versPng = (markup: string, taille: number) => versBitmap(markup, taille, 'image/png')
 
 /** Declenche le telechargement d'un blob sous le nom donne. */
 export function telecharge(blob: Blob, nom: string) {
@@ -110,4 +129,74 @@ export async function copie(blob: Promise<Blob>) {
  */
 export async function copieTexte(texte: string) {
   await navigator.clipboard.writeText(texte)
+}
+
+/** Ce que le bot doit porter sur l'animation exportee. */
+export interface ReglagesBot {
+  shape: string
+  color: string
+  expression: string
+}
+
+/**
+ * Rend la sequence image par image, sur une instance HORS ECRAN.
+ *
+ * Pas de capture de l'avatar affiche, et c'est deliberé : a l'ecran le bot est
+ * a une date d'horloge quelconque, alors qu'ici on veut une sequence
+ * reproductible qui commence au debut. C'est possible parce que `engine.sample(t)`
+ * est une fonction pure du temps — la meme date redonne toujours la meme image —
+ * et parce qu'un `BloubBot` a qui on donne `frozenAt` ne lance aucune boucle
+ * d'animation ni aucun ecouteur : on le fait avancer nous-memes.
+ *
+ * Le meme composant sert donc a l'ecran et a l'export : une seule source de
+ * dessin, aucune chance de derive.
+ */
+export async function imagesDuBot(
+  reglages: ReglagesBot,
+  taille: number,
+  nombre: number,
+  pas: number
+): Promise<Uint8Array[]> {
+  const hote = document.createElement('div')
+  // hors du flux et hors de vue, mais RENDU : un `display:none` ne donnerait pas
+  // de SVG a serialiser.
+  hote.style.cssText = 'position:fixed;left:-99999px;top:0;width:0;height:0;overflow:hidden'
+  document.body.appendChild(hote)
+
+  const date = ref(0)
+  const app = createApp({
+    render: () => h(BloubBot, { ...reglages, size: taille, frozenAt: date.value })
+  })
+  app.mount(hote)
+
+  try {
+    const images: Uint8Array[] = []
+    // Un seul canvas pour toute la sequence : en creer un par image laisse des
+    // dizaines de contextes au ramasse-miettes pendant l'export.
+    const canvas = document.createElement('canvas')
+    for (let i = 0; i < nombre; i++) {
+      date.value = i * pas
+      await nextTick()
+      const svg = hote.querySelector('svg')
+      if (!svg) throw new Error('bot hors ecran non rendu')
+      const blob = await versBitmap(svgAutonome(svg, taille), taille, 'image/webp', canvas)
+      images.push(new Uint8Array(await blob.arrayBuffer()))
+    }
+    return images
+  } finally {
+    app.unmount()
+    hote.remove()
+  }
+}
+
+/** Assemble l'animation du bot en un WebP anime. */
+export async function versWebpAnime(
+  reglages: ReglagesBot,
+  taille: number,
+  nombre: number,
+  pas: number
+): Promise<Blob> {
+  const images = await imagesDuBot(reglages, taille, nombre, pas)
+  const fichier = webpAnime(images, taille, taille, Math.round(pas * 1000))
+  return new Blob([fichier], { type: 'image/webp' })
 }
