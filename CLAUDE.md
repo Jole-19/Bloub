@@ -116,6 +116,12 @@ are what `engine.sample(1)` returns for `idle`, byte for byte. `favicon.ico` and
 suspends `requestAnimationFrame` when hidden, so an animation can't be captured
 there at all. To redo them, drive the engine, don't reach for a screenshot.
 
+Same pane, related trap: when it is hidden it also **clamps `setTimeout` to ~1 s**
+and freezes CSS transitions. So no sub-second timing can be measured there — a poll
+written at 40 ms actually fires at 1 s, which reads as a delay the code never had.
+Assert on the *state* instead (a `MutationObserver` still fires; an
+`animation-delay` of `-1.5s` samples an animation mid-way while it is frozen).
+
 ## Useful URLs
 
 - `#planche` — the 14 states side by side, frozen. The only safe path: it doesn't
