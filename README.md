@@ -14,6 +14,10 @@ pnpm build        # vue-tsc + vite build
 - `#planche` affiche les 14 états côte à côte, figés à une date choisie.
 - `#etat=orbit&stop` ouvre directement un état, séquence à l'arrêt.
 
+La barre flottante à gauche bascule entre **Animations** (le lecteur) et
+**Personnaliser** : 8 formes de corps et 12 couleurs, mémorisées d'une visite à
+l'autre.
+
 ## Ce qui n'est pas deviné
 
 Tout est **relevé au pixel sur la vidéo de référence**, pas dessiné à vue. La
@@ -60,6 +64,7 @@ d'états figés et les tests sans DOM.
 | Fichier | Rôle |
 |---|---|
 | `profiles.ts` | Profils radiaux `r(theta)` relevés sur la vidéo. **Généré**, ne pas éditer. |
+| `skins.ts` | Formes et couleurs du personnalisateur. Construites, pas mesurées. |
 | `shape.ts` | Silhouette = profil radial + pose. Morphing, échantillonnage, path Catmull-Rom. |
 | `face.ts` | Modèle de sphère des yeux, dérive du regard, clignements. |
 | `decor.ts` | Anneaux et rubans (arcs elliptiques 3D), particules, pastille de notification. |
@@ -75,6 +80,19 @@ Les yeux sont de **vrais trous** percés dans le corps (`<mask>`), comme sur
 x.ai : ils restent donc rognés par la silhouette quand ils glissent vers le
 bord, sans code de découpe. L'encoche de la pastille de notification utilise le
 même masque.
+
+Deux sources de silhouettes, volontairement séparées : les **états animés**
+viennent de la vidéo (`profiles.ts`, généré), les **formes de base** proposées à
+l'utilisateur sont construites analytiquement (`skins.ts`). La forme choisie ne
+remplace le corps que sur les états marqués `baseBody` — repos, clin d'œil, yeux
+écarquillés, notification. Partout ailleurs la silhouette *est* l'animation et
+n'a pas à être écrasée.
+
+Corollaire non évident : dès que le corps n'est plus un cercle, les yeux posés
+sur la sphère de rayon 1 sortent de la silhouette et le masque les rogne. Ils
+sont donc ramenés au prorata du rayon réel dans leur direction
+(`radiusAtAngle`) — la pastille de notification aussi, puisqu'elle est posée sur
+le contour.
 
 Les anneaux sont des cercles 3D projetés en orthographique ; la composante `z`
 coupe chaque arc en deux, la moitié arrière étant dessinée **avant** le corps

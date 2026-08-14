@@ -1,7 +1,10 @@
 <script setup lang="ts">
 import { computed, ref, watch } from 'vue'
+import Customizer from '@/components/Customizer.vue'
 import GrokBot from '@/components/GrokBot.vue'
-import { STATES, SEQUENCE, type StateId } from '@/bot/states'
+import SideRail, { type ViewId } from '@/components/SideRail.vue'
+import { COLOR_BY_ID, DEFAULT_COLOR, DEFAULT_SHAPE, SHAPE_BY_ID } from '@/bot/skins'
+import { SEQUENCE, STATES, type StateId } from '@/bot/states'
 
 /**
  * L'URL pilote la vue : `#etat=orbit&stop` ouvre un etat precis sequence a
@@ -23,10 +26,12 @@ const initial = readHash()
 const state = ref<StateId>(initial.state)
 const playing = ref(initial.playing)
 const gallery = ref(initial.gallery)
+const view = ref<ViewId>('animations')
 
-watch(state, (id) => {
-  // replace et pas push : on ne veut pas un cran d'historique par etat
-  location.replace(`#etat=${id}${playing.value ? '' : '&stop'}`)
+// L'URL est partageable, donc elle suit l'etat ET la lecture. replace et pas
+// push : on ne veut pas un cran d'historique par etat.
+watch([state, playing], ([id, on]) => {
+  location.replace(`#etat=${id}${on ? '' : '&stop'}`)
 })
 
 window.addEventListener('hashchange', () => {
@@ -34,6 +39,40 @@ window.addEventListener('hashchange', () => {
   gallery.value = next.gallery
   if (!next.gallery) state.value = next.state
 })
+
+/**
+ * En personnalisation on regarde la forme, pas la sequence : on retombe sur
+ * l'etat de repos et on suspend l'enchainement. L'horloge, elle, continue de
+ * tourner — le regard derive et les yeux clignent toujours, ce qui garde le bot
+ * vivant sans empecher de juger la forme.
+ */
+let resume = playing.value
+
+watch(view, (now, before) => {
+  if (now === 'personnaliser') {
+    resume = playing.value
+    playing.value = false
+    state.value = 'idle'
+  } else if (before === 'personnaliser') {
+    playing.value = resume
+  }
+})
+
+/**
+ * Forme et couleur survivent au rechargement : c'est l'avatar de l'utilisateur,
+ * pas un reglage de session. On valide au chargement, un id inconnu retombe sur
+ * le defaut.
+ */
+function stored(key: string, fallback: string, exists: (v: string) => boolean) {
+  const v = localStorage.getItem(key)
+  return v && exists(v) ? v : fallback
+}
+
+const shape = ref(stored('grokbot:forme', DEFAULT_SHAPE, (v) => SHAPE_BY_ID.has(v)))
+const color = ref(stored('grokbot:couleur', DEFAULT_COLOR, (v) => COLOR_BY_ID.has(v)))
+
+watch(shape, (v) => localStorage.setItem('grokbot:forme', v))
+watch(color, (v) => localStorage.setItem('grokbot:couleur', v))
 
 const current = computed(() => STATES.find((s) => s.id === state.value))
 const order = computed(() => SEQUENCE.map((id) => STATES.find((s) => s.id === id)!))
@@ -68,66 +107,94 @@ const POSES: Record<StateId, number> = {
     </a>
     <div class="mt-4 grid grid-cols-[repeat(auto-fill,minmax(210px,1fr))] gap-3">
       <figure v-for="s in order" :key="s.id" class="flex flex-col items-center">
-        <GrokBot :state="s.id" :size="210" :frozen-at="POSES[s.id]" />
+        <GrokBot
+          :state="s.id"
+          :size="210"
+          :shape="shape"
+          :color="color"
+          :frozen-at="POSES[s.id]"
+        />
         <figcaption class="text-xs text-[var(--muted)]">{{ s.label }}</figcaption>
       </figure>
     </div>
   </div>
 
-  <div v-else class="flex min-h-full items-stretch justify-center gap-10 p-8 max-lg:flex-col">
-    <!-- scene -->
-    <main class="flex flex-1 flex-col items-center justify-center gap-8">
-      <div class="flex aspect-square w-full max-w-[460px] items-center justify-center">
-        <GrokBot v-model:state="state" v-model:playing="playing" :size="440" />
-      </div>
+  <template v-else>
+    <SideRail v-model="view" />
 
-      <div class="flex flex-col items-center gap-3">
-        <button
-          type="button"
-          class="flex h-12 w-12 cursor-pointer items-center justify-center rounded-full border border-[var(--line)] bg-white transition hover:border-[var(--ink)] active:scale-95"
-          :aria-label="playing ? 'Arreter la sequence' : 'Lancer la sequence'"
-          @click="playing = !playing"
-        >
-          <svg v-if="!playing" width="16" height="16" viewBox="0 0 16 16" aria-hidden="true">
-            <path d="M4 2.5 13 8l-9 5.5z" fill="currentColor" />
-          </svg>
-          <svg v-else width="16" height="16" viewBox="0 0 16 16" aria-hidden="true">
-            <rect x="3.5" y="3" width="3.2" height="10" rx="1" fill="currentColor" />
-            <rect x="9.3" y="3" width="3.2" height="10" rx="1" fill="currentColor" />
-          </svg>
-        </button>
-        <p class="text-center text-xs text-[var(--muted)]">
-          <span class="font-medium text-[var(--ink)]">{{ current?.label }}</span>
-          — {{ current?.hint }}
-        </p>
-      </div>
-    </main>
+    <div class="flex min-h-full items-stretch justify-center gap-10 p-8 pl-24 max-lg:flex-col">
+      <!-- scene -->
+      <main class="flex flex-1 flex-col items-center justify-center gap-8">
+        <div class="flex aspect-square w-full max-w-[460px] items-center justify-center">
+          <GrokBot
+            v-model:state="state"
+            v-model:playing="playing"
+            :size="440"
+            :shape="shape"
+            :color="color"
+          />
+        </div>
 
-    <!-- panneau de declenchement manuel -->
-    <aside class="w-full lg:w-64 lg:shrink-0">
-      <h1 class="text-sm font-semibold">Grok bot</h1>
-      <p class="mt-1 mb-3 text-xs leading-relaxed text-[var(--muted)]">
-        Morphing SVG. Le lecteur enchaine la sequence ; chaque bouton declenche un etat a la main.
-        <a class="underline underline-offset-2" href="#planche">Voir la planche</a>
-      </p>
-      <div class="flex flex-col gap-0.5">
-        <button
-          v-for="s in order"
-          :key="s.id"
-          type="button"
-          :title="s.hint"
-          class="cursor-pointer rounded border px-2.5 py-1.5 text-left text-xs transition"
-          :class="
-            s.id === state
-              ? 'border-[var(--ink)] bg-[var(--ink)] text-[var(--paper)]'
-              : 'border-[var(--line)] bg-white hover:border-[var(--ink)]'
-          "
-          @click="state = s.id"
-        >
-          <span class="font-medium">{{ s.label }}</span>
-          <span class="block truncate text-[11px] opacity-55">{{ s.hint }}</span>
-        </button>
-      </div>
-    </aside>
-  </div>
+        <div v-if="view === 'animations'" class="flex flex-col items-center gap-3">
+          <button
+            type="button"
+            class="flex h-12 w-12 cursor-pointer items-center justify-center rounded-full border border-[var(--line)] bg-white transition hover:border-[var(--ink)] active:scale-95"
+            :aria-label="playing ? 'Arreter la sequence' : 'Lancer la sequence'"
+            @click="playing = !playing"
+          >
+            <svg v-if="!playing" width="16" height="16" viewBox="0 0 16 16" aria-hidden="true">
+              <path d="M4 2.5 13 8l-9 5.5z" fill="currentColor" />
+            </svg>
+            <svg v-else width="16" height="16" viewBox="0 0 16 16" aria-hidden="true">
+              <rect x="3.5" y="3" width="3.2" height="10" rx="1" fill="currentColor" />
+              <rect x="9.3" y="3" width="3.2" height="10" rx="1" fill="currentColor" />
+            </svg>
+          </button>
+          <p class="text-center text-xs text-[var(--muted)]">
+            <span class="font-medium text-[var(--ink)]">{{ current?.label }}</span>
+            — {{ current?.hint }}
+          </p>
+        </div>
+      </main>
+
+      <aside class="w-full lg:shrink-0" :class="view === 'animations' ? 'lg:w-64' : 'lg:w-80'">
+        <h1 class="text-sm font-semibold">Grok bot</h1>
+
+        <!-- panneau de declenchement manuel -->
+        <template v-if="view === 'animations'">
+          <p class="mt-1 mb-3 text-xs leading-relaxed text-[var(--muted)]">
+            Le lecteur enchaine la sequence ; chaque bouton declenche un etat a la main.
+            <a class="underline underline-offset-2" href="#planche">Voir la planche</a>
+          </p>
+          <div class="flex flex-col gap-0.5">
+            <button
+              v-for="s in order"
+              :key="s.id"
+              type="button"
+              :title="s.hint"
+              class="cursor-pointer rounded border px-2.5 py-1.5 text-left text-xs transition"
+              :class="
+                s.id === state
+                  ? 'border-[var(--ink)] bg-[var(--ink)] text-[var(--paper)]'
+                  : 'border-[var(--line)] bg-white hover:border-[var(--ink)]'
+              "
+              @click="state = s.id"
+            >
+              <span class="font-medium">{{ s.label }}</span>
+              <span class="block truncate text-[11px] opacity-55">{{ s.hint }}</span>
+            </button>
+          </div>
+        </template>
+
+        <!-- personnalisation -->
+        <template v-else>
+          <p class="mt-1 mb-4 text-xs leading-relaxed text-[var(--muted)]">
+            La forme choisie remplace le corps au repos. Les animations qui dessinent leur
+            propre forme (le « ! », les points, l'orbite) gardent la leur.
+          </p>
+          <Customizer v-model:shape="shape" v-model:color="color" />
+        </template>
+      </aside>
+    </div>
+  </template>
 </template>

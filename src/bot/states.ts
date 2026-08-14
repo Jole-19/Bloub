@@ -166,6 +166,13 @@ export interface StateDef {
   morph: number
   /** true = l'entree est masquee par un clignement, comme dans la video */
   blinkIn: boolean
+  /**
+   * true = le corps est la silhouette "au repos", donc remplacable par la forme
+   * choisie dans le personnalisateur. Les etats qui dessinent leur propre forme
+   * (le "!", les points, l'oeuf, le triangle...) valent false : c'est cette forme
+   * la qui EST l'animation.
+   */
+  baseBody: boolean
   pose(local: number): Pose
 }
 
@@ -184,6 +191,7 @@ export const STATES: StateDef[] = [
     duration: 2.4,
     morph: 0.45,
     blinkIn: false,
+    baseBody: true,
     pose: () => base()
   },
 
@@ -193,6 +201,7 @@ export const STATES: StateDef[] = [
     hint: 'Trois points, onde de pulsation de gauche a droite',
     duration: 2.6,
     morph: 0.4,
+    baseBody: false,
     blinkIn: true,
     pose: (t) => {
       const mid = dotPulse(t, 1)
@@ -209,7 +218,6 @@ export const STATES: StateDef[] = [
             x: DOT_X[i]! * emerge,
             y: 0,
             r: DOT_R * (1 + (DOT_PEAK - 1) * k),
-            color: '#0a0a0a',
             opacity: 0.55 + 0.45 * k
           }
         })
@@ -224,6 +232,7 @@ export const STATES: StateDef[] = [
     duration: 1.6,
     morph: 0.3,
     blinkIn: true,
+    baseBody: true,
     pose: () =>
       base({
         gaze: { yaw: -5.37, pitch: 4.55, roll: 6.7 },
@@ -244,6 +253,7 @@ export const STATES: StateDef[] = [
     duration: 1.8,
     morph: 0.55,
     blinkIn: true,
+    baseBody: true,
     pose: () =>
       base({
         gaze: { yaw: 6.92, pitch: -21.96, roll: 11.6 },
@@ -258,6 +268,7 @@ export const STATES: StateDef[] = [
     hint: "Point d'exclamation penche qui traverse en vibrant",
     duration: 2.4,
     morph: 0.45,
+    baseBody: false,
     blinkIn: false,
     pose: (t) => {
       // Course mesuree : -0.087 -> +0.732 en 1.5 s, ease-in-out, micro-overshoot.
@@ -279,7 +290,6 @@ export const STATES: StateDef[] = [
             r: 0.118,
             d: TEAR,
             rot: (tilt * 180) / Math.PI,
-            color: '#0a0a0c',
             opacity: 1
           }
         ]
@@ -294,6 +304,7 @@ export const STATES: StateDef[] = [
     duration: 2.2,
     morph: 0.5,
     blinkIn: true,
+    baseBody: true,
     pose: (t) => {
       // Pop du point bleu : pic a +14 % vers 0.3 s puis stabilisation.
       const p = clamp(t / 0.45)
@@ -321,12 +332,13 @@ export const STATES: StateDef[] = [
     hint: "Point d'exclamation vertical, barre tronconique",
     duration: 2,
     morph: 0.45,
+    baseBody: false,
     blinkIn: false,
     pose: () =>
       base({
         sil: barUpright(),
         eyeAlpha: 0,
-        dots: [{ x: -0.012, y: 0.526, r: 0.113, color: '#0a0a0c', opacity: 1 }]
+        dots: [{ x: -0.012, y: 0.526, r: 0.113, opacity: 1 }]
       })
   },
 
@@ -336,6 +348,7 @@ export const STATES: StateDef[] = [
     hint: 'Reduction en un point qui rebondit verticalement',
     duration: 2.4,
     morph: 0.5,
+    baseBody: false,
     blinkIn: false,
     pose: (t) =>
       base({
@@ -351,6 +364,7 @@ export const STATES: StateDef[] = [
     hint: 'Meme hauteur que la boule, retreci en largeur, plus large en bas',
     duration: 1.8,
     morph: 0.4,
+    baseBody: false,
     blinkIn: true,
     pose: () =>
       base({
@@ -368,6 +382,7 @@ export const STATES: StateDef[] = [
     hint: 'Hexagone pointe en haut, coins tres arrondis',
     duration: 1.6,
     morph: 0.4,
+    baseBody: false,
     blinkIn: true,
     pose: () =>
       base({
@@ -384,6 +399,7 @@ export const STATES: StateDef[] = [
     hint: "Triangle arrondi, bouquet d'arcs colores qui le balaie",
     duration: 2,
     morph: 0.5,
+    baseBody: false,
     blinkIn: true,
     pose: (t) => {
       // Le triangle reste quasi immobile pendant que le bouquet le traverse.
@@ -410,6 +426,7 @@ export const STATES: StateDef[] = [
     hint: 'Anneaux arc-en-ciel en orbite 3D, le triangle tourne puis se relache',
     duration: 3.4,
     morph: 0.6,
+    baseBody: false,
     blinkIn: false,
     pose: (t) => {
       // Rotation mesuree : rampe sur 0.35 s puis 1.25 tour/s (sens antihoraire).
@@ -454,6 +471,7 @@ export const STATES: StateDef[] = [
     hint: 'Le corps se disperse en particules qui spiralent puis se recompose',
     duration: 2.6,
     morph: 0.4,
+    baseBody: false,
     blinkIn: false,
     pose: (t) => {
       // Effondrement mesure : 1.0 -> 0.166 en 0.7 s, ease-out, sans rebond.
@@ -474,6 +492,7 @@ export const STATES: StateDef[] = [
     hint: 'Le point reste au centre, la trainee arc-en-ciel lui tourne autour',
     duration: 2.4,
     morph: 0.45,
+    baseBody: false,
     blinkIn: false,
     pose: (t) => {
       const collapse = 1 - (1 - COMET_DOT) * easings.easeOutQuint(clamp(t / 0.55))

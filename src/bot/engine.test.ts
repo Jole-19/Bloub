@@ -1,5 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import { BotEngine } from './engine'
+import { radiusAtAngle } from './shape'
+import { SHAPE_BY_ID } from './skins'
 import { SEQUENCE, STATES, type StateId } from './states'
 
 /** Points d'ancrage d'un path genere par closedPath (on ignore les controles). */
@@ -97,6 +99,67 @@ describe('moteur', () => {
           expect(Math.abs(x)).toBeLessThan(158)
           expect(Math.abs(y)).toBeLessThan(158)
         }
+      }
+    }
+  })
+})
+
+describe('forme personnalisee', () => {
+  const radii = (id: string) => SHAPE_BY_ID.get(id)!.radii
+  const hauteur = (e: BotEngine, t: number) => footprint(e.sample(t).bodyPath).h
+
+  it('remplace la silhouette des etats au repos', () => {
+    const rond = new BotEngine(100, 'idle')
+    const goutte = new BotEngine(100, 'idle', radii('goutte'))
+    expect(goutte.sample(1).bodyPath).not.toBe(rond.sample(1).bodyPath)
+  })
+
+  it('laisse intacts les etats qui dessinent leur propre forme', () => {
+    for (const id of ['exclaim', 'alert', 'sleep', 'egg', 'hexagon'] as const) {
+      const nu = new BotEngine(100, id)
+      const habille = new BotEngine(100, id, radii('goutte'))
+      expect(habille.sample(1).bodyPath).toBe(nu.sample(1).bodyPath)
+    }
+  })
+
+  it('morphe vers la nouvelle forme au lieu de sauter', () => {
+    const e = new BotEngine(100, 'idle', radii('cercle'))
+    // le cercle fait 2.0 de haut, la capsule 1.24 : la hauteur est parlante
+    expect(hauteur(e, 1)).toBeCloseTo(2, 1)
+    e.setShape(radii('capsule'), 1)
+
+    const etapes = [1.06, 1.14, 1.26].map((t) => hauteur(e, t))
+    // strictement decroissant, et jamais deja arrive
+    for (let i = 1; i < etapes.length; i++) {
+      expect(etapes[i]!).toBeLessThan(etapes[i - 1]!)
+    }
+    expect(etapes[0]!).toBeLessThan(2)
+    expect(etapes[etapes.length - 1]!).toBeGreaterThan(1.24)
+
+    // arrive apres la duree du morph
+    expect(hauteur(e, 1 + BotEngine.SHAPE_MORPH + 0.05)).toBeCloseTo(1.24, 1)
+  })
+
+  it('reste une fonction pure du temps pendant un morph de forme', () => {
+    const e = new BotEngine(100, 'idle', radii('cercle'))
+    e.setShape(radii('capsule'), 1)
+    const milieu = e.sample(1.1).bodyPath
+    // on depasse la fin du morph, puis on relit la date passee
+    e.sample(3)
+    expect(e.sample(1.1).bodyPath).toBe(milieu)
+  })
+
+  it('garde les yeux dans la silhouette sur une forme non circulaire', () => {
+    for (const id of ['nuage', 'capsule', 'goutte', 'triangle', 'squircle'] as const) {
+      const f = new BotEngine(100, 'idle', radii(id)).sample(1)
+      expect(f.eyes).toHaveLength(2)
+      for (const eye of f.eyes) {
+        const parts = /matrix\(([^)]+)\)/.exec(eye.matrix)![1]!.split(',').map(Number)
+        const ex = parts[4]!
+        const ey = parts[5]!
+        const bord = radiusAtAngle(radii(id), Math.atan2(ey, ex)) * 100
+        // le centre de l'oeil doit rester franchement a l'interieur du contour
+        expect(Math.hypot(ex, ey)).toBeLessThan(bord)
       }
     }
   })

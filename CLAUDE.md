@@ -7,7 +7,7 @@ Vue 3.5 + Vite 8 + TS strict + Tailwind 4 (plugin `@tailwindcss/vite`, pas de
 
 ```bash
 pnpm dev       # 5190
-pnpm test      # vitest, 25 tests
+pnpm test      # vitest
 pnpm build     # vue-tsc --noEmit && vite build
 ```
 
@@ -41,13 +41,27 @@ Les pièges vérifiés, à ne pas « corriger » :
 - **`src/bot/` est sans framework et sans horloge.** `engine.sample(t)` est une
   fonction pure du temps. C'est ce qui rend possible la prop `frozenAt`, la
   planche d'états et les tests sans DOM. Ne pas y introduire d'état interne
-  dépendant du temps réel, de `Date.now()` ni d'import Vue.
+  dépendant du temps réel, de `Date.now()` ni d'import Vue. **`sample()` ne doit
+  rien muter non plus** : purger un état « périmé » pendant la lecture (ce qui
+  paraît une optimisation innocente) rend le moteur non rejouable — piège déjà
+  tombé une fois sur le morph de forme, il y a un test dédié.
 - **Toutes les silhouettes partagent le même échantillonnage angulaire**
   (`PROFILE_SAMPLES`), ce qui rend le morphing trivial (interpolation des
   rayons). Toute nouvelle forme doit passer par un profil radial, ou par
   `profileFromPolygon` si elle n'est pas exprimable en `r(theta)`.
 - **Les yeux sont des trous dans un `<mask>`**, pas des formes blanches posées
   par-dessus : c'est ce qui les fait rogner tout seuls au bord de la silhouette.
+- **Deux sources de formes, à ne pas mélanger.** `profiles.ts` est généré depuis
+  la vidéo et sert aux états animés ; `skins.ts` contient les formes du
+  personnalisateur, construites analytiquement. Une forme choisie par
+  l'utilisateur ne remplace le corps que sur les états `baseBody: true` (repos,
+  clin d'œil, yeux écarquillés, notification) : ailleurs, la silhouette EST
+  l'animation.
+- **Tout ce qui est posé « sur » le corps doit suivre son rayon réel.** Les yeux
+  vivent sur une sphère de rayon 1 ; sur une forme non circulaire ils sortent de
+  la silhouette et le masque les coupe. D'où `radiusAtAngle` dans `engine.ts`,
+  appliqué aux yeux et à la pastille de notification. Si tu ajoutes un élément
+  ancré au contour, il lui faut le même traitement.
 - **Les états déclarent des `ArcSpec`** (géométrie en unités de rayon de boule) ;
   seul le moteur connaît l'échelle du viewBox et rasterise. Ne pas appeler
   `arcRender` depuis `states.ts`.

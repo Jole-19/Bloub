@@ -1,8 +1,16 @@
 import { arcRender, type ArcRender, type DotRender } from './decor'
 import { blinkScale, eyePoses, liveliness } from './face'
 import { clamp, easings, lerp, r2 } from './math'
-import { blend, capsulePath, closedPath, toPoints, type Point, type Silhouette } from './shape'
-import { STATE_BY_ID, STATES, type Pose, type StateId } from './states'
+import {
+  blend,
+  capsulePath,
+  closedPath,
+  radiusAtAngle,
+  toPoints,
+  type Point,
+  type Silhouette
+} from './shape'
+import { STATE_BY_ID, STATES, type Pose, type StateDef, type StateId } from './states'
 
 export interface RenderedEye {
   d: string
@@ -74,10 +82,57 @@ export class BotEngine {
   private tPrev = 0
   private blinkAt = -10
   private pts: Point[] = []
+  private shape: number[] | null = null
+  private shapePrev: number[] | null = null
+  private shapeAt = -10
 
-  constructor(scale = 100, initial: StateId = 'idle') {
+  /** duree du morph quand on change la forme du corps */
+  static readonly SHAPE_MORPH = 0.45
+
+  constructor(scale = 100, initial: StateId = 'idle', shape: number[] | null = null) {
     this.scale = scale
     this.cur = initial
+    this.shape = shape
+  }
+
+  /**
+   * Forme choisie dans le personnalisateur. Elle ne remplace le corps que sur
+   * les etats au repos (`baseBody`) : sur les autres, la silhouette EST
+   * l'animation et ne doit pas etre ecrasee.
+   *
+   * Le changement se fait en morph, pas d'un coup : comme toutes les formes sont
+   * echantillonnees aux memes angles, il suffit d'interpoler les rayons.
+   */
+  setShape(radii: number[] | null, now = 0) {
+    if (radii === this.shape) return
+    this.shapePrev = this.shape
+    this.shape = radii
+    this.shapeAt = now
+  }
+
+  /**
+   * Forme effective a l'instant `now`, morph en cours compris.
+   *
+   * Ne remet PAS `shapePrev` a null en fin de morph : `sample` doit rester une
+   * fonction pure du temps, donc relire une date passee doit redonner l'image
+   * intermediaire. On garde juste une reference de plus.
+   */
+  private shapeAtTime(now: number): number[] | null {
+    const to = this.shape
+    const from = this.shapePrev
+    if (!to || !from) return to
+    const k = (now - this.shapeAt) / BotEngine.SHAPE_MORPH
+    if (k >= 1) return to
+    const t = easings.easeOutQuint(clamp(k))
+    // alloue seulement pendant le morph ; hors morph on rend le tableau tel quel
+    return to.map((r, i) => lerp(from[i] ?? r, r, t))
+  }
+
+  private posed(def: StateDef, t: number, shape: number[] | null): Pose {
+    const pose = def.pose(t)
+    if (!def.baseBody || !shape) return pose
+    // on garde la pose (rotation, decalage, squash) et on n'echange que le profil
+    return { ...pose, sil: { ...pose.sil, radii: shape } }
   }
 
   get state(): StateId {
@@ -97,13 +152,14 @@ export class BotEngine {
   sample(now: number): BotFrame {
     const R = this.scale
     const def = STATE_BY_ID.get(this.cur)!
-    let pose = def.pose(Math.max(0, now - this.tCur))
+    const shape = this.shapeAtTime(now)
+    let pose = this.posed(def, Math.max(0, now - this.tCur), shape)
 
     // --- transition -------------------------------------------------------
     const since = now - this.tCur
     if (this.prev && since < def.morph) {
       const prevDef = STATE_BY_ID.get(this.prev)!
-      const prevPose = prevDef.pose(Math.max(0, now - this.tPrev))
+      const prevPose = this.posed(prevDef, Math.max(0, now - this.tPrev), shape)
       // Ease-out exponentiel : c'est la courbe mesuree sur la video. Le corps
       // n'a pas d'overshoot (seuls la pastille et l'ouverture des yeux en ont).
       pose = blendPose(prevPose, pose, easings.easeOutQuint(since / def.morph))
@@ -139,6 +195,12 @@ export class BotEngine {
     const bodyPath = closedPath(toPoints(sil, R, this.pts))
 
     // --- yeux -------------------------------------------------------------
+    // Les yeux vivent sur une sphere de rayon 1 ; des que la silhouette n'est
+    // plus un cercle, on les ramene au prorata du rayon reel dans leur
+    // direction, sinon ils debordent et le masque les coupe.
+    const bodyRadius = (x: number, y: number) =>
+      radiusAtAngle(pose.sil.radii, Math.atan2(y, x) - pose.sil.rot)
+
     const eyes: RenderedEye[] = []
     if (pose.eyeAlpha > 0.01) {
       const poses = eyePoses(gaze, R, pose.split)
@@ -146,12 +208,13 @@ export class BotEngine {
         const e = poses[i]!
         if (e.depth <= 0.02) continue
         const cfg = pose.eyes[i]!
+        const fit = bodyRadius(e.x, e.y)
         // Le clignement s'applique APRES la matrice tangente : c'est un
         // ecrasement vertical a l'ecran, pas le long de l'axe de la gelule.
         const k = blinkScale(Math.min(lid, cfg.open))
         eyes.push({
           d: capsulePath(cfg.w * R, cfg.h * R),
-          matrix: `matrix(${r2(e.a)},${r2(e.b * k)},${r2(e.c)},${r2(e.d * k)},${r2(e.x + offX * R)},${r2(e.y + offY * R)})`,
+          matrix: `matrix(${r2(e.a)},${r2(e.b * k)},${r2(e.c)},${r2(e.d * k)},${r2(e.x * fit + offX * R)},${r2(e.y * fit + offY * R)})`,
           alpha: pose.eyeAlpha * clamp(e.depth / 0.12)
         })
       }
@@ -162,12 +225,12 @@ export class BotEngine {
       .filter((p) => p.opacity > 0.01 && p.r > 0.0005)
       .map((p) => ({ ...p, x: (p.x + offX) * R, y: (p.y + offY) * R, r: p.r * R }))
 
-    const notif = pose.notif
-      ? { x: (pose.notif.x + offX) * R, y: (pose.notif.y + offY) * R, r: pose.notif.r * R }
-      : null
-    const notch = pose.notif
-      ? { x: (pose.notif.x + offX) * R, y: (pose.notif.y + offY) * R, r: pose.notif.notch * R }
-      : null
+    // la pastille est posee sur le contour : elle suit donc la forme aussi
+    const nFit = pose.notif ? bodyRadius(pose.notif.x, pose.notif.y) : 1
+    const nx = pose.notif ? (pose.notif.x * nFit + offX) * R : 0
+    const ny = pose.notif ? (pose.notif.y * nFit + offY) * R : 0
+    const notif = pose.notif ? { x: nx, y: ny, r: pose.notif.r * R } : null
+    const notch = pose.notif ? { x: nx, y: ny, r: pose.notif.notch * R } : null
 
     return {
       bodyPath,

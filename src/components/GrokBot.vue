@@ -1,22 +1,40 @@
 <script setup lang="ts">
-import { onBeforeUnmount, onMounted, shallowRef, triggerRef, watch } from 'vue'
+import { computed, onBeforeUnmount, onMounted, shallowRef, triggerRef, watch } from 'vue'
 import { NOTIF_BLUE } from '@/bot/decor'
 import { BotEngine, type BotFrame } from '@/bot/engine'
+import {
+  COLOR_BY_ID,
+  DEFAULT_COLOR,
+  DEFAULT_SHAPE,
+  SHAPE_BY_ID,
+  mixHex
+} from '@/bot/skins'
 import { SEQUENCE, STATE_BY_ID, type StateId } from '@/bot/states'
 
 const props = withDefaults(
   defineProps<{
     size?: number
-    ink?: string
+    /** identifiant de forme du personnalisateur */
+    shape?: string
+    /** identifiant de couleur du personnalisateur */
+    color?: string
+    /** couleur du fond, utilisee pour la brume de profondeur des particules */
+    paper?: string
     /**
      * Fige le rendu a cette date (en secondes depuis le debut de l'etat).
      * Le moteur etant une fonction pure du temps, on obtient une image
      * reproductible au pixel pres, sans boucle d'animation : utile pour une
-     * planche d'etats, une capture ou un test.
+     * planche d'etats, une vignette de personnalisateur ou un test.
      */
     frozenAt?: number
   }>(),
-  { size: 320, ink: '#0a0a0c', frozenAt: undefined }
+  {
+    size: 320,
+    shape: DEFAULT_SHAPE,
+    color: DEFAULT_COLOR,
+    paper: '#f9f9f9',
+    frozenAt: undefined
+  }
 )
 
 const state = defineModel<StateId>('state', { default: 'idle' })
@@ -26,7 +44,10 @@ const playing = defineModel<boolean>('playing', { default: false })
 const R = 100
 const VB = 158
 
-const engine = new BotEngine(R, state.value)
+const shapeRadii = computed(() => SHAPE_BY_ID.get(props.shape)?.radii ?? null)
+const ink = computed(() => COLOR_BY_ID.get(props.color)?.hex ?? '#0a0a0c')
+
+const engine = new BotEngine(R, state.value, shapeRadii.value)
 const frame = shallowRef<BotFrame>(engine.sample(props.frozenAt ?? 0))
 const uid = Math.random().toString(36).slice(2, 8)
 const maskId = `bot-mask-${uid}`
@@ -66,16 +87,31 @@ function tick(ms: number) {
   triggerRef(frame)
 }
 
+/** Redessine sans la boucle : sert aux vignettes figees quand la forme change. */
+function redrawFrozen() {
+  if (props.frozenAt === undefined) return
+  frame.value = engine.sample(props.frozenAt)
+  triggerRef(frame)
+}
+
 // Changement venu de l'exterieur (clic sur un bouton, prop). setState et
 // schedule sont idempotents, donc inoffensif quand goTo est deja passe.
 watch(state, (id) => {
   engine.setState(id, clock)
   if (playing.value) schedule(id)
+  redrawFrozen()
 })
 
 watch(playing, (on) => {
   if (on) schedule(state.value)
   else nextAt = Infinity
+})
+
+watch(shapeRadii, (radii) => {
+  // on passe l'horloge : le moteur morphe vers la nouvelle forme au lieu de
+  // l'appliquer d'un coup
+  engine.setShape(radii, clock)
+  redrawFrozen()
 })
 
 onMounted(() => {
@@ -89,11 +125,20 @@ onBeforeUnmount(() => cancelAnimationFrame(raf))
  * Un point est un simple disque, sauf quand l'etat fournit une forme (la
  * goutte du "!" penche) : le path est alors en unites de rayon de boule et
  * centre sur l'origine, donc on le pose avec translate/rotate/scale.
+ *
+ * La couleur suit celle du corps par defaut ; `depth` sert aux particules, qui
+ * se fondent dans le fond a mesure qu'elles s'eloignent.
  */
 function dotAttrs(dot: BotFrame['dots'][number]) {
-  const common = { fill: dot.color, opacity: dot.opacity }
+  const fill =
+    dot.color ?? (dot.depth === undefined ? ink.value : mixHex(props.paper, ink.value, dot.depth))
+  const common = { fill, opacity: dot.opacity }
   return dot.d
-    ? { ...common, d: dot.d, transform: `translate(${dot.x} ${dot.y}) rotate(${dot.rot ?? 0}) scale(${R})` }
+    ? {
+        ...common,
+        d: dot.d,
+        transform: `translate(${dot.x} ${dot.y}) rotate(${dot.rot ?? 0}) scale(${R})`
+      }
     : { ...common, cx: dot.x, cy: dot.y, r: dot.r }
 }
 </script>
@@ -180,7 +225,7 @@ function dotAttrs(dot: BotFrame['dots'][number]) {
     </g>
 
     <g :mask="`url(#${maskId})`" :opacity="frame.bodyAlpha">
-      <rect :x="-VB" :y="-VB" :width="VB * 2" :height="VB * 2" :fill="props.ink" />
+      <rect :x="-VB" :y="-VB" :width="VB * 2" :height="VB * 2" :fill="ink" />
     </g>
 
     <g v-if="!frame.dotsBehind">

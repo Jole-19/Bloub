@@ -1,4 +1,4 @@
-import { TAU, clamp, createRng, lerp, r2 } from './math'
+import { TAU, clamp, createRng, r2 } from './math'
 
 /* ------------------------------------------------------------------ couleurs */
 
@@ -31,21 +31,20 @@ function wheel(hue: number, s = 0.55, l = 0.62): string {
   return `#${hex(r)}${hex(g)}${hex(b)}`
 }
 
-/** Brume de profondeur des particules : plus c'est loin, plus c'est clair. */
-function haze(t: number): string {
-  const v = Math.round(lerp(247, 26, clamp(t)))
-  const hex = v.toString(16).padStart(2, '0')
-  return `#${hex}${hex}${hex}`
-}
-
 /* ------------------------------------------------------------- types de rendu */
 
 export interface DotRender {
   x: number
   y: number
   r: number
-  color: string
   opacity: number
+  /** couleur explicite ; par defaut le rendu prend celle du corps */
+  color?: string
+  /**
+   * Brume de profondeur : 0 = fondu dans le fond, 1 = couleur du corps pleine.
+   * Le melange se fait au rendu, qui seul connait la couleur choisie.
+   */
+  depth?: number
   /**
    * Forme non circulaire, en unites de rayon de boule et centree sur l'origine
    * (le point du "!" penche est une goutte, pas un disque). Quand elle est
@@ -232,7 +231,7 @@ export function particles(t: number, scale: number): DotRender[] {
       x: Math.cos(a) * rho * scale,
       y: Math.sin(a) * rho * scale,
       r: (0.04 + 0.028 * clamp(u / 0.55)) * scale,
-      color: haze(clamp(1 - rho / 0.8)),
+      depth: clamp(1 - rho / 0.8),
       opacity: clamp(u / 0.06) * clamp((0.62 - u) / 0.08)
     })
   }
