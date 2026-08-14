@@ -1,118 +1,101 @@
 # bloub
 
-**bloub** est une recréation en SVG animé de l'avatar du bot de x.ai (x.ai/bot) :
-**une seule forme noire pleine** qui morphe entre 14 états, **deux formes
-blanches** pour les yeux qui morphent indépendamment, sur fond blanc. Aucune
-librairie d'animation.
+An SVG recreation of the x.ai bot avatar: **one filled black shape** that morphs
+between 14 states, **two white shapes** for the eyes that morph independently, on
+a plain background. No animation library.
+
+![The avatar going through idle, wink, orbit and burst](docs/demo.gif)
+
+## Running it
 
 ```bash
 pnpm install
-pnpm dev          # http://localhost:5190
-pnpm test         # vitest
-pnpm build        # vue-tsc + vite build
+pnpm dev
 ```
 
-- `#planche` affiche les 14 états côte à côte, figés à une date choisie.
-- `#etat=orbit&stop` ouvre directement un état, séquence à l'arrêt.
-
-La barre flottante à gauche bascule entre **Animations** (le lecteur) et
-**Personnaliser** : 8 formes de corps et 12 couleurs, mémorisées d'une visite à
-l'autre.
-
-## Ce qui n'est pas deviné
-
-Tout est **relevé au pixel sur la vidéo de référence**, pas dessiné à vue. La
-vidéo a été découpée à 10 images/s, puis chaque état mesuré : silhouettes par
-lancer de rayon sous-pixel, yeux par ajustement de capsule (ACP), couleurs et
-épaisseurs par échantillonnage direct.
-
-Les constantes du code sont donc des **mesures**, pas des réglages esthétiques.
-Quelques-unes, contre-intuitives, valent d'être connues avant de « corriger »
-quoi que ce soit :
-
-| Croyance courante | Ce que dit la vidéo |
-|---|---|
-| Les yeux penchent comme `//` | Ils penchent comme `\\` (haut vers la gauche, 25,3° de la verticale) |
-| Le corps est un squircle | C'est un **cercle parfait** (déviation radiale < 0,7 %) |
-| Les transitions sont des ressorts | Ce sont des **ease-out exponentiels**, sans dépassement du corps |
-| La barre du `!` est une capsule | Le `!` **vertical** est tronconique (haut/bas = 1,76) ; seul le `!` **penché** est une capsule |
-| La comète traverse l'écran | Le point **reste au centre**, c'est la traînée qui l'orbite |
-| Le point du `!` penché est un disque | C'est une **goutte**, bout rond côté barre, pointe à l'opposé |
-| L'avatar flotte au repos | Il est **immobile** (centre stable à ±0,003) : toute la vie passe par le regard et les clignements |
-
-Deux mécaniques structurent le reste :
-
-**Les yeux vivent sur une sphère.** L'œil proche du bord fait 0,69 fois la
-largeur de l'autre et 0,663 fois son aire — exactement le facteur de profondeur
-d'un point de sphère à cette distance du centre. Chaque œil récupère donc le
-repère tangent de la sphère, projeté en orthographique : la compression, le
-basculement et le passage derrière le limbe en découlent tout seuls. Les poses
-de regard (`REST_GAZE` et les `gaze` par état) sont issues d'un ajustement du
-modèle sur les positions mesurées, avec une erreur résiduelle de ~1 px sur une
-boule de 190 px.
-
-**Chaque changement de forme est masqué par un clignement.** C'est le mécanisme
-d'atténuation du morph dans l'original, reproduit par `blinkIn` sur les états
-concernés.
-
-## Architecture
-
-Le cœur (`src/bot/`) est **sans framework et sans horloge** : `engine.sample(t)`
-est une fonction pure du temps. Pause, reprise, saut à une date arbitraire et
-tests donnent la même image au pixel près — c'est ce qui permet la planche
-d'états figés et les tests sans DOM.
-
-| Fichier | Rôle |
-|---|---|
-| `profiles.ts` | Profils radiaux `r(theta)` relevés sur la vidéo. **Généré**, ne pas éditer. |
-| `skins.ts` | Formes et couleurs du personnalisateur. Construites, pas mesurées. |
-| `shape.ts` | Silhouette = profil radial + pose. Morphing, échantillonnage, path Catmull-Rom. |
-| `face.ts` | Modèle de sphère des yeux, dérive du regard, clignements. |
-| `decor.ts` | Anneaux et rubans (arcs elliptiques 3D), particules, pastille de notification. |
-| `states.ts` | Les 14 états : silhouette, regard, décor, timings. |
-| `engine.ts` | Machine à états, transitions, assemblage d'une image. |
-
-Le morphing tient à un choix : **toutes les silhouettes sont échantillonnées aux
-mêmes angles**. Deux formes quelconques ont donc des points qui se correspondent
-un à un, et une transition se réduit à une interpolation linéaire des rayons —
-d'où l'absence de librairie de morphing de path.
-
-Les yeux sont de **vrais trous** percés dans le corps (`<mask>`), comme sur
-x.ai : ils restent donc rognés par la silhouette quand ils glissent vers le
-bord, sans code de découpe. L'encoche de la pastille de notification utilise le
-même masque.
-
-Deux sources de silhouettes, volontairement séparées : les **états animés**
-viennent de la vidéo (`profiles.ts`, généré), les **formes de base** proposées à
-l'utilisateur sont construites analytiquement (`skins.ts`). La forme choisie ne
-remplace le corps que sur les états marqués `baseBody` — repos, clin d'œil, yeux
-écarquillés, notification. Partout ailleurs la silhouette *est* l'animation et
-n'a pas à être écrasée.
-
-Corollaire non évident : dès que le corps n'est plus un cercle, les yeux posés
-sur la sphère de rayon 1 sortent de la silhouette et le masque les rogne. Ils
-sont donc ramenés au prorata du rayon réel dans leur direction
-(`radiusAtAngle`) — la pastille de notification aussi, puisqu'elle est posée sur
-le contour.
-
-Les anneaux sont des cercles 3D projetés en orthographique ; la composante `z`
-coupe chaque arc en deux, la moitié arrière étant dessinée **avant** le corps
-donc occultée par lui. C'est ce tri en profondeur qui les fait lire comme des
-orbites plutôt que comme un dessin plat.
-
-## Régénérer les profils
-
-`src/bot/profiles.ts` est produit à partir des images de la vidéo :
+Then open http://localhost:5190.
 
 ```bash
-ffmpeg -i reference.mp4 -vf fps=10 frames/h_%04d.png
-pip install numpy pillow
-python tools/extract-profiles.py frames/ > src/bot/profiles.ts
+pnpm test     # vitest
+pnpm build    # vue-tsc --noEmit && vite build
 ```
 
-## Intégrer le composant
+Vue 3, Vite, TypeScript, Tailwind 4. No ESLint and no Prettier — `vue-tsc` is the
+only gate, so run `pnpm build` before you call something done.
+
+## What's in it
+
+The rail on the left switches between three views. **Customise** offers 8 body
+shapes, 12 colours and 16 rest expressions, kept between visits. **Animations** is
+a small editor: arrange states into a timeline, set how long each is held, save the
+result. **Settings** holds the language — French, English or Chinese — and the
+credits.
+
+Two URLs are worth knowing:
+
+- `#planche` — the 14 states side by side, frozen. Quick visual check.
+- `#etat=orbit&stop` — opens one state directly, playback paused.
+
+![The 14 states, frozen side by side](docs/states.png)
+
+## Why the numbers look arbitrary
+
+They're measured, not chosen. The reference video was cut at 10 fps and each
+state measured off the frames: silhouettes by sub-pixel ray casting, eyes by
+capsule fitting, colours and stroke widths by direct sampling.
+
+So the constants in the code are **measurements**, and rounding them to friendlier
+values breaks the resemblance — which is the only thing this project is trying to
+get right. A few are counter-intuitive enough to be worth knowing before you
+correct anything:
+
+| What you'd assume | What the video shows |
+|---|---|
+| The eyes lean `//` | They lean `\\`, around 26° off vertical |
+| The body is a squircle | It's a perfect circle — radial deviation under 0.7% |
+| Transitions are springs | Exponential ease-outs; the body never overshoots |
+| The comet crosses the screen | The dot stays put, the trail orbits it |
+| The avatar floats at rest | It doesn't — the life is gaze drift and blinking |
+
+[docs/measurements.md](docs/measurements.md) has the rest, including how to
+regenerate the extracted profiles.
+
+## How it's put together
+
+`src/bot/` is framework-free and clock-free: `engine.sample(t)` is a pure
+function of time. Pausing, resuming, jumping to an arbitrary date and running
+tests all produce the same image, which is what makes the frozen state board and
+the DOM-less test suite possible.
+
+| | |
+|---|---|
+| [docs/architecture.md](docs/architecture.md) | The engine, radial-profile morphing, eyes as mask holes |
+| [docs/measurements.md](docs/measurements.md) | What was measured, and regenerating `profiles.ts` |
+| [docs/intro.md](docs/intro.md) | The arrival sequence, and why it only plays one state |
+| [docs/interface.md](docs/interface.md) | Layout, the three-column scene, CSS traps |
+| [docs/i18n.md](docs/i18n.md) | The hand-rolled translation layer |
+
+## Using the component
 
 ```vue
-<BloubBot v-model:state="etat" v-model:playing="lecture" :size="440" />
-<BloubBot state="orbit" :size="120" :frozen-at="1.2" />   <!-- image figée -->
+<BloubBot v-model:block="block" v-model:state="state" v-model:playing="playing" />
+<BloubBot state="orbit" :size="120" :frozen-at="1.2" />
 ```
+
+`block` is the playback cursor — a montage can play the same state twice, so the
+index is what identifies where you are; `state` follows it as an output. Pass
+`frozenAt` and the component renders one exact frame with no animation loop, which
+is how the thumbnails and the state board are drawn.
+
+Props: `size`, `shape`, `color`, `expression`, `paper`, `frozenAt`, `cycle`,
+`follow`, `gaze`. Models: `block`, `state`, `playing`, `elapsed`. See
+[BloubBot.vue](src/components/BloubBot.vue) for the details.
+
+## License
+
+MIT — see [LICENSE](LICENSE).
+
+Not affiliated with, endorsed by or connected to x.ai. It recreates the visual
+behaviour of their bot avatar as an exercise; "Grok" and "x.ai" belong to their
+owners. The MIT licence covers the code in this repository, not the design it
+imitates.
