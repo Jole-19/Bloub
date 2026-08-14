@@ -358,13 +358,19 @@ watch(
       <kbd class="rounded bg-black/5 px-1 py-0.5 text-[10px]">{{ t('preview.key') }}</kbd>
     </button>
 
-    <!-- La place de la barre de montage est reservee dans les deux vues : elle
-         est fixee en bas, donc sans cette reserve la scene se recentrerait en
-         passant a la personnalisation et l'avatar sauterait d'un cran. -->
+    <!-- La place de la barre de montage n'est reservee QUE la ou elle existe.
+         Reservee dans toutes les vues, elle amputait le panneau de droite de sa
+         hauteur (236 px) au profit d'un vide que rien ne venait remplir : la
+         grille du personnalisateur se retrouvait a defiler sous un tiers d'ecran
+         blanc. Ce que la reserve tenait par ailleurs — l'avatar et le panneau
+         des reglages, qui ne doivent pas se recentrer d'un onglet a l'autre —
+         est desormais porte par ces deux colonnes elles-memes, sous la forme de
+         la meme hauteur de bande (`100dvh - 3rem - var(--timeline)`). -->
     <div
       class="scene min-h-full items-stretch justify-center p-8 max-lg:flex max-lg:flex-col max-lg:gap-10"
       :class="[
-        preview ? '' : 'pb-[calc(var(--timeline)_+_1rem)] pl-24',
+        preview ? '' : 'pl-24',
+        !preview && view === 'animations' && 'pb-[calc(var(--timeline)_+_1rem)]',
         view === 'reglages' && 'scene--gauche'
       ]"
     >
@@ -378,10 +384,15 @@ watch(
            une longue grille de vignettes qui part du haut, celui-ci tient en
            quelques lignes et se lirait comme oublie en haut d'un grand vide. Puis
            remonte d'un cran : centre au pixel, il tombe plus bas que le regard,
-           qui se porte au tiers superieur. -->
+           qui se porte au tiers superieur.
+
+           Il se centre sur la BANDE DE L'AVATAR (la meme hauteur que `main`), et
+           non sur la colonne : cette vue n'a pas de barre de montage, donc la
+           colonne va jusqu'en bas de la fenetre et un centrage dessus ferait
+           descendre le panneau d'une centaine de pixels selon l'onglet. -->
       <aside
         v-if="!preview"
-        class="panneau scene__gauche w-full lg:w-80 lg:shrink-0 lg:self-center lg:-translate-y-12"
+        class="panneau scene__gauche w-full lg:flex lg:h-[calc(100dvh_-_3rem_-_var(--timeline))] lg:w-80 lg:shrink-0 lg:flex-col lg:justify-center lg:self-start lg:-translate-y-12"
         :class="view === 'reglages' ? 'panneau--ouvert max-lg:order-2' : 'max-lg:hidden'"
       >
         <Settings />
