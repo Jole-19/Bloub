@@ -20,7 +20,7 @@ function onInput(e: Event) {
 </script>
 
 <template>
-  <div class="flex items-center gap-2">
+  <div class="flex items-center gap-1.5">
     <!-- les deux pastilles disent le sens : petit a gauche, grand a droite -->
     <span class="h-1 w-1 shrink-0 rounded-full bg-[var(--muted)]" aria-hidden="true" />
     <input
@@ -35,6 +35,9 @@ function onInput(e: Event) {
       @input="onInput"
     />
     <span class="h-2 w-2 shrink-0 rounded-full bg-[var(--muted)]" aria-hidden="true" />
-    <span class="w-12 text-right text-xs tabular-nums text-[var(--muted)]">{{ percent }} %</span>
+    <!-- largeur fixe pour que la barre ne bouge pas quand le nombre change de
+         chiffres, mais aligne a GAUCHE : cale a droite, le pourcentage
+         s'eloignait du curseur des qu'il perdait un chiffre -->
+    <span class="w-11 text-left text-xs tabular-nums text-[var(--muted)]">{{ percent }} %</span>
   </div>
 </template>
