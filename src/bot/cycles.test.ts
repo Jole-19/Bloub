@@ -26,11 +26,9 @@ describe('cycle par defaut', () => {
     }
   })
 
-  it('est verrouille, et reconstruit a l identique a chaque appel', () => {
-    expect(defaultCycle().locked).toBe(true)
-    // il n'est jamais stocke : deux appels doivent donner le meme montage
+  it('est reconstruit a l identique a chaque appel', () => {
     expect(defaultCycle()).toEqual(defaultCycle())
-    // ...sans partager d'objet, sinon editer un cycle toucherait la reference
+    // ...sans partager d'objet, sinon editer un montage toucherait l amorce
     expect(defaultCycle().blocks[0]).not.toBe(defaultCycle().blocks[0])
   })
 
@@ -150,11 +148,11 @@ describe('relecture du stockage', () => {
     expect(parseCycles(doublon).map((c) => c.name)).toEqual(['A'])
   })
 
-  it('ne laisse pas un stockage bricole usurper ou verrouiller un cycle', () => {
-    const raw = '[{"id":"defaut","name":"Faux","blocks":[{"state":"idle","duration":2}]},' +
-      '{"id":"c1","name":"Vrai","locked":true,"blocks":[{"state":"idle","duration":2}]}]'
-    const cycles = parseCycles(raw)
-    expect(cycles.map((c) => c.id)).toEqual(['c1'])
-    expect(cycles[0]!.locked).toBeUndefined()
+  it('ne garde que les champs du modele, pas ce qu on lui glisse en plus', () => {
+    const raw = '[{"id":"defaut","name":"Mon montage","locked":true,"secret":1,' +
+      '"blocks":[{"state":"idle","duration":2,"vitesse":3}]}]'
+    const cycle = parseCycles(raw)[0]!
+    expect(Object.keys(cycle).sort()).toEqual(['blocks', 'id', 'name'])
+    expect(Object.keys(cycle.blocks[0]!).sort()).toEqual(['duration', 'state'])
   })
 })

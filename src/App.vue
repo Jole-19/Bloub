@@ -5,15 +5,7 @@ import Customizer from '@/components/Customizer.vue'
 import GrokBot from '@/components/GrokBot.vue'
 import SideRail, { type ViewId } from '@/components/SideRail.vue'
 import Timeline from '@/components/Timeline.vue'
-import {
-  blockAt,
-  blocksWith,
-  DEFAULT_CYCLE_ID,
-  defaultCycle,
-  makeBlock,
-  parseCycles,
-  type Cycle
-} from '@/bot/cycles'
+import { blockAt, blocksWith, defaultCycle, makeBlock, parseCycles, type Cycle } from '@/bot/cycles'
 import { DEFAULT_EXPRESSION, EXPRESSION_BY_ID } from '@/bot/expressions'
 import { COLOR_BY_ID, DEFAULT_COLOR, DEFAULT_SHAPE, SHAPE_BY_ID } from '@/bot/skins'
 import { POSES, SEQUENCE, STATES, type StateId } from '@/bot/states'
@@ -42,16 +34,25 @@ const gallery = ref(initial.gallery)
 /* ------------------------------------------------------------------ cycles */
 
 /**
- * Le cycle releve sur la video est reconstruit a chaque chargement, jamais
- * stocke : c'est la reference, elle doit suivre le code et pas le navigateur.
- * Seuls les montages de l'utilisateur sont persistes.
+ * Le montage releve sur la video n'est qu'une amorce : au premier lancement il
+ * remplit la liste, ensuite les montages de l'utilisateur font foi — y compris
+ * ses modifications de celui-la.
  */
-const REFERENCE = defaultCycle()
-const cycles = ref<Cycle[]>([REFERENCE, ...parseCycles(localStorage.getItem('grokbot:cycles'))])
+const restored = parseCycles(localStorage.getItem('grokbot:cycles'))
+const cycles = ref<Cycle[]>(restored.length ? restored : [defaultCycle()])
 
-/** Emplacement d'un etat dans le cycle de reference, pour les liens `#etat=`. */
-function refBlockOf(id: StateId) {
-  return Math.max(0, REFERENCE.blocks.findIndex((b) => b.state === id))
+/**
+ * Ou trouver un etat pour les liens `#etat=` : dans le montage courant s'il y
+ * est, sinon dans un autre. Aucun montage n'est fige, donc l'etat demande peut
+ * tres bien avoir ete retire partout — auquel cas le lien ne s'applique pas.
+ */
+function locate(id: StateId) {
+  const ordre = [cycle.value, ...cycles.value.filter((c) => c.id !== activeId.value)]
+  for (const c of ordre) {
+    const index = c.blocks.findIndex((b) => b.state === id)
+    if (index >= 0) return { id: c.id, index }
+  }
+  return null
 }
 
 /**
@@ -65,14 +66,21 @@ function stored(key: string, fallback: string, exists: (v: string) => boolean) {
 }
 
 const activeId = ref(
-  initial.named
-    ? DEFAULT_CYCLE_ID
-    : stored('grokbot:cycle', DEFAULT_CYCLE_ID, (v) => cycles.value.some((c) => c.id === v))
+  stored('grokbot:cycle', cycles.value[0]!.id, (v) => cycles.value.some((c) => c.id === v))
 )
-const block = ref(initial.named ? refBlockOf(initial.state) : 0)
+const block = ref(0)
 const elapsed = ref(0)
 
 const cycle = computed(() => cycles.value.find((c) => c.id === activeId.value) ?? cycles.value[0]!)
+
+// un lien vers un etat precis ouvre le montage qui le contient
+if (initial.named) {
+  const found = locate(initial.state)
+  if (found) {
+    activeId.value = found.id
+    block.value = found.index
+  }
+}
 
 // L'etat est une sortie du lecteur : c'est le bloc courant qui commande. On
 // l'initialise sur ce bloc pour ne pas entrer en morphant depuis un etat qui
@@ -88,7 +96,7 @@ let pending: ReturnType<typeof setTimeout>
 watch(cycles, (list) => {
   clearTimeout(pending)
   pending = setTimeout(() => {
-    localStorage.setItem('grokbot:cycles', JSON.stringify(list.filter((c) => !c.locked)))
+    localStorage.setItem('grokbot:cycles', JSON.stringify(list))
   }, 250)
 })
 watch(activeId, (v) => localStorage.setItem('grokbot:cycle', v))
@@ -104,10 +112,8 @@ const view = ref<ViewId>(initial.named ? 'animations' : 'personnaliser')
 const playing = ref(initial.playing && view.value === 'animations')
 
 // L'URL est partageable, donc elle suit l'etat ET la lecture. replace et pas
-// push : on ne veut pas un cran d'historique par etat. Sur un montage
-// personnel, en revanche, elle n'aurait aucun sens : on n'y touche pas.
+// push : on ne veut pas un cran d'historique par etat.
 watch([state, playing], ([id, on]) => {
-  if (activeId.value !== DEFAULT_CYCLE_ID) return
   location.replace(`#etat=${id}${on ? '' : '&stop'}`)
 })
 
@@ -115,12 +121,13 @@ window.addEventListener('hashchange', () => {
   const next = readHash()
   gallery.value = next.gallery
   if (next.gallery) return
-  // Seul un lien qui NOMME un etat parle du cycle de reference — le seul qui
-  // les contient tous les quatorze. Sans ca, revenir de la planche (`#planche`
-  // puis `#`) jetterait le montage en cours de l'utilisateur.
+  // Seul un lien qui NOMME un etat deplace la lecture. Sans ce garde, revenir
+  // de la planche (`#planche` puis `#`) ramenerait au debut du montage.
   if (!next.named) return
-  activeId.value = DEFAULT_CYCLE_ID
-  block.value = refBlockOf(next.state)
+  const found = locate(next.state)
+  if (!found) return
+  activeId.value = found.id
+  block.value = found.index
 })
 
 /**
@@ -168,7 +175,6 @@ const order = computed(() => SEQUENCE.map((id) => STATES.find((s) => s.id === id
 
 /** Ajoute une animation a la fin du montage courant. */
 function addBlock(id: StateId) {
-  if (cycle.value.locked) return
   cycles.value = cycles.value.map((c) =>
     c.id === cycle.value.id ? { ...c, blocks: blocksWith(c.blocks, id) } : c
   )
@@ -261,7 +267,6 @@ function onSeek(t: number) {
               :key="s.id"
               :label="s.label"
               :selected="s.id === state"
-              :disabled="cycle.locked"
               :state="s.id"
               :shape="shape"
               :color="color"

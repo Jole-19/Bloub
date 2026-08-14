@@ -99,4 +99,7 @@ images de la vidéo (voir README). Ne pas l'éditer à la main ; le régénérer
 ## URLs utiles
 
 - `#planche` — les 14 états côte à côte, figés (vérification visuelle rapide).
-- `#etat=<id>&stop` — ouvre un état précis, séquence à l'arrêt.
+  C'est le seul chemin sûr : il ne dépend d'aucun montage.
+- `#etat=<id>&stop` — ouvre un état précis, lecture à l'arrêt. Il cherche l'état
+  dans les montages de l'utilisateur, qui sont tous éditables : si celui-ci l'a
+  retiré partout, le lien ne s'applique pas.

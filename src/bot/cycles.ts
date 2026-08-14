@@ -19,8 +19,6 @@ export interface Cycle {
   id: string
   name: string
   blocks: Block[]
-  /** le cycle releve sur la video : on le duplique, on ne l'edite pas */
-  locked?: boolean
 }
 
 /**
@@ -41,7 +39,7 @@ export const MAX_BLOCK = 10
 /** Pas de la molette et du redimensionnement, en secondes. */
 export const STEP = 0.1
 
-export const DEFAULT_CYCLE_ID = 'defaut'
+const DEFAULT_CYCLE_ID = 'defaut'
 
 /** Duree minimale d'un bloc : le plancher moteur, ou la mesure de l'etat. */
 export function minDurationOf(state: StateId): number {
@@ -61,14 +59,15 @@ export function makeBlock(state: StateId): Block {
 }
 
 /**
- * Le cycle releve sur la video : l'ordre de `SEQUENCE`, chaque etat tenu sa
- * duree mesuree. C'est la reference, jamais modifiee — on la duplique.
+ * Le montage releve sur la video : l'ordre de `SEQUENCE`, chaque etat tenu sa
+ * duree mesuree. Il sert d'amorce au premier lancement, puis il appartient a
+ * l'utilisateur — il s'edite et se stocke comme les autres. La reference, elle,
+ * reste dans le code : vider le stockage la fait revenir.
  */
 export function defaultCycle(): Cycle {
   return {
     id: DEFAULT_CYCLE_ID,
     name: 'Cycle par défaut',
-    locked: true,
     blocks: SEQUENCE.map(makeBlock)
   }
 }
@@ -149,15 +148,12 @@ function parseBlock(raw: unknown): Block | null {
 function parseCycle(raw: unknown, seen: Cycle[]): Cycle | null {
   if (typeof raw !== 'object' || raw === null) return null
   const { id, name, blocks } = raw as { id?: unknown; name?: unknown; blocks?: unknown }
-  if (typeof id !== 'string' || !id || id === DEFAULT_CYCLE_ID) return null
+  if (typeof id !== 'string' || !id) return null
   if (typeof name !== 'string' || !name) return null
   if (!Array.isArray(blocks)) return null
   const kept = blocks.map(parseBlock).filter((b): b is Block => b !== null)
   if (!kept.length) return null
   if (seen.some((c) => c.id === id)) return null
-  // `locked` n'est jamais relu : seul le cycle par defaut, qui n'est pas
-  // stocke, est verrouille. Sinon un stockage bricole rendrait un cycle
-  // impossible a editer sans vider le navigateur.
   return { id, name, blocks: kept }
 }
 

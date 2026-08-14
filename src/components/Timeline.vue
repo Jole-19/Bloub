@@ -52,7 +52,6 @@ const zoom = ref(1)
 const scale = computed(() => BASE_SCALE * zoom.value)
 const cycle = computed(() => cycles.value.find((c) => c.id === activeId.value) ?? cycles.value[0]!)
 const blocks = computed(() => cycle.value.blocks)
-const editable = computed(() => !cycle.value.locked)
 const total = computed(() => totalDuration(cycle.value))
 const at = computed(() => offsetOf(cycle.value, block.value) + props.elapsed)
 
@@ -185,7 +184,6 @@ watch([total, scale, blocks], () => nextTick(onScroll))
 
 /** Remplace le cycle courant : les cycles sont des valeurs, jamais mutees. */
 function edit(next: Partial<Cycle>) {
-  if (!editable.value) return
   cycles.value = cycles.value.map((c) => (c.id === cycle.value.id ? { ...c, ...next } : c))
 }
 
@@ -241,7 +239,7 @@ function addBlock(state: StateId) {
 
 function removeBlock(index: number) {
   // la derniere carte ne part pas : un montage vide n'aurait rien a jouer
-  if (!editable.value || blocks.value.length < 2) return
+  if (blocks.value.length < 2) return
   edit({ blocks: blocks.value.filter((_, i) => i !== index) })
   // le curseur suit : une carte retiree avant lui le decale d'un cran, et il ne
   // doit jamais pointer au-dela de la piste
@@ -282,7 +280,7 @@ function onBlockMove(e: PointerEvent) {
   const d = drag.value
   if (!d) return
   if (Math.abs(e.clientX - d.startX) > 4) d.moved = true
-  if (!d.moved || !editable.value) return
+  if (!d.moved) return
   const cible = indexAt(pointerSeconds(e))
   if (cible === d.from || cible < 0) return
   // le curseur suit la carte qu'on deplace, sinon la lecture sauterait ailleurs
@@ -308,6 +306,9 @@ function scrubTo(e: PointerEvent) {
 }
 
 function onRulerDown(e: PointerEvent) {
+  // sans ca, promener la tete de lecture surligne les graduations au passage :
+  // le navigateur demarre une selection de texte sur le `mousedown` induit
+  e.preventDefault()
   ;(e.currentTarget as HTMLElement).setPointerCapture(e.pointerId)
   scrubbing.value = true
   scrubTo(e)
@@ -387,7 +388,9 @@ watch(block, () => {
       <span class="text-sm tabular-nums text-[var(--muted)]">{{ mmss(total) }}</span>
     </div>
 
-    <div class="flex h-full flex-col gap-2">
+    <!-- rien ne se selectionne dans une barre d'outils : ca ne sert a personne
+         et ca surligne tout des qu'on glisse une carte ou la tete de lecture -->
+    <div class="flex h-full flex-col gap-2 select-none">
       <div class="flex items-center gap-1">
         <CycleMenu
           v-model:active-id="activeId"
@@ -441,7 +444,7 @@ watch(block, () => {
           <!-- la piste garde de la place pour la carte « + » a sa suite -->
           <div
             class="relative flex h-full flex-col"
-            :style="{ width: `${total * scale + (editable ? 76 : 0)}px` }"
+            :style="{ width: `${total * scale + 76}px` }"
           >
             <!--
               Regle graduee : elle sert aussi de zone de deplacement. On attrape
@@ -450,7 +453,7 @@ watch(block, () => {
               d'une carte, le clic sur une carte ne fait que sauter a son debut.
             -->
             <div
-              class="relative h-7 shrink-0 cursor-ew-resize pt-1"
+              class="relative h-7 shrink-0 cursor-ew-resize pt-1 select-none"
               @pointerdown="onRulerDown"
               @pointermove="onRulerMove"
               @pointerup="scrubbing = false"
@@ -530,8 +533,7 @@ watch(block, () => {
                   </span>
                 </button>
 
-                <template v-if="editable">
-                  <!-- poignee de duree : bouton a part entiere, donc utilisable au clavier -->
+                    <!-- poignee de duree : bouton a part entiere, donc utilisable au clavier -->
                   <button
                     type="button"
                     class="absolute inset-y-2 right-0.5 w-1 cursor-ew-resize rounded-full bg-[var(--muted)] opacity-0 transition group-hover:opacity-60 hover:opacity-100! focus-visible:opacity-100"
@@ -552,11 +554,10 @@ watch(block, () => {
                   >
                     ×
                   </button>
-                </template>
               </li>
 
               <!-- ajout depuis la piste, sans aller jusqu'a la palette de droite -->
-              <li v-if="editable" class="relative w-[72px] shrink-0 pl-1">
+              <li class="relative w-[72px] shrink-0 pl-1">
                 <button
                   type="button"
                   class="flex h-full w-full cursor-pointer items-center justify-center rounded-lg border-2 border-dashed border-[var(--line)] text-lg leading-none text-[var(--muted)] transition hover:border-[var(--muted)] hover:text-[var(--ink)]"
