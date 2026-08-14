@@ -1,25 +1,18 @@
 <script setup lang="ts">
-import { ref, watch } from 'vue'
-import { t } from '@/i18n'
+import { useTemplateRef } from 'vue'
+import { useModalDialog } from '@/ui/useModalDialog'
 
 /**
- * Confirmation d'une action destructrice. Meme `<dialog>` natif que le nommage
- * (piege a focus, Echap, fond assombri), et meme animation venue de
- * `styles.css`. Le focus s'ouvre sur « Annuler » : sur une suppression, la
- * touche Entree ne doit pas detruire.
+ * Confirmation d'une action destructrice. Le focus s'ouvre sur « Annuler » :
+ * sur une suppression, la touche Entree ne doit pas detruire. L'animation vient
+ * de `styles.css`, le reste du comportement modal de `useModalDialog`.
  */
 const props = defineProps<{ title: string; detail: string; confirmLabel: string }>()
 const open = defineModel<boolean>('open', { required: true })
 const emit = defineEmits<{ confirm: [] }>()
 
-const el = ref<HTMLDialogElement | null>(null)
-
-watch(open, (on) => {
-  const dialog = el.value
-  if (!dialog) return
-  if (on) dialog.showModal()
-  else if (dialog.open) dialog.close()
-})
+const boite = useTemplateRef<HTMLDialogElement>('boite')
+useModalDialog(open, boite)
 
 function confirm() {
   emit('confirm')
@@ -29,7 +22,7 @@ function confirm() {
 
 <template>
   <dialog
-    ref="el"
+    ref="boite"
     class="dialogue m-auto w-80 rounded-2xl bg-white p-5 text-[var(--ink)] shadow-xl"
     :aria-label="props.title"
     @close="open = false"
@@ -48,7 +41,7 @@ function confirm() {
           class="h-8 cursor-pointer rounded-lg px-3 text-xs text-[var(--muted)] transition hover:bg-black/5 hover:text-[var(--ink)]"
           @click="open = false"
         >
-          {{ t('dialog.cancel') }}
+          Annuler
         </button>
         <button
           type="button"

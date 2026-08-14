@@ -47,6 +47,7 @@ export default {
     play: 'Lancer la lecture',
     pause: 'Arrêter la lecture',
     addAnimation: 'Ajouter une animation',
+    preview: 'Aperçu',
     zoom: 'Zoom de la piste',
     blockAria: '{state}, {duration}',
     blockDurationAria: 'Durée de {state}, {duration}',

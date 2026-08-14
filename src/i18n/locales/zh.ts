@@ -44,6 +44,7 @@ const zh: typeof fr = {
     play: '开始播放',
     pause: '停止播放',
     addAnimation: '添加动画',
+    preview: '预览',
     zoom: '轨道缩放',
     blockAria: '{state}，{duration}',
     blockDurationAria: '{state} 的时长，{duration}',

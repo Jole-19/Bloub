@@ -39,6 +39,7 @@ const en: typeof fr = {
     play: 'Start playback',
     pause: 'Stop playback',
     addAnimation: 'Add an animation',
+    preview: 'Preview',
     zoom: 'Track zoom',
     blockAria: '{state}, {duration}',
     blockDurationAria: 'Duration of {state}, {duration}',

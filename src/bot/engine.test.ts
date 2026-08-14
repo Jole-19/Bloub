@@ -72,6 +72,24 @@ describe('moteur', () => {
     expect(a.sample(0.7).bodyPath).toBe(first)
   })
 
+  it('reste rejouable PENDANT un fondu entre etats', () => {
+    // le piege : purger l'etat precedent une fois le fondu fini rend cette
+    // date irrecuperable, et le fondu disparait a la relecture
+    const e = new BotEngine(100, 'idle')
+    e.setState('egg', 1)
+    const pendant = e.sample(1.2).bodyPath
+    e.sample(3)
+    expect(e.sample(1.2).bodyPath).toBe(pendant)
+  })
+
+  it('ne part pas dans le decor sur une date anterieure au changement d etat', () => {
+    // avant le changement, il n'y a rien a fondre : on doit voir l'etat sortant
+    const e = new BotEngine(100, 'idle')
+    const avant = e.sample(0.5).bodyPath
+    e.setState('egg', 1)
+    expect(e.sample(0.5).bodyPath).toBe(avant)
+  })
+
   it('anime vraiment : la forme evolue entre deux dates', () => {
     const e = new BotEngine(100, 'thinking')
     const paths = [0.1, 0.4, 0.8, 1.2].map((t) => e.sample(t).bodyPath)

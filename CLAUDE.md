@@ -50,6 +50,9 @@ vidéo, lui, n'a pas bougé : c'est celui du bot, dans `skins.ts` (`encre`,
   rien muter non plus** : purger un état « périmé » pendant la lecture (ce qui
   paraît une optimisation innocente) rend le moteur non rejouable — piège déjà
   tombé une fois sur le morph de forme, il y a un test dédié.
+  Le code Vue partagé entre composants (composables, réglages d'affichage) va
+  dans **`src/ui/`** — c'est là qu'il faut le mettre plutôt que de céder à la
+  tentation d'un import Vue dans `src/bot/`.
 - **Le montage (`cycles.ts`) tient ou coupe, il ne met jamais le temps à
   l'échelle.** Étirer un bloc laisse l'état tourner plus longtemps (ceux qui
   bouclent font des tours de plus, les autres tiennent leur pose finale) ;

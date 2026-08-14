@@ -263,14 +263,19 @@ export class BotEngine {
 
     // --- transition -------------------------------------------------------
     const since = now - this.tCur
+    // L'etat precedent n'est jamais purge : `since < def.morph` suffit a
+    // l'ignorer une fois le fondu passe, et l'oublier rendrait le moteur non
+    // rejouable — relire une date d'avant la fin du fondu ne le retrouverait
+    // plus. C'est l'optimisation qui parait innocente et qui casse tout.
     if (this.prev && since < def.morph) {
       const prevDef = STATE_BY_ID.get(this.prev)!
       const prevPose = this.posed(prevDef, Math.max(0, now - this.tPrev), shape, expr)
       // Ease-out exponentiel : c'est la courbe mesuree sur la video. Le corps
       // n'a pas d'overshoot (seuls la pastille et l'ouverture des yeux en ont).
-      pose = blendPose(prevPose, pose, easings.easeOutQuint(since / def.morph))
-    } else if (this.prev) {
-      this.prev = null
+      // Le ratio est borne : relire une date ANTERIEURE au changement d'etat
+      // donnerait un ratio negatif, que l'ease-out extrapole — la silhouette
+      // part alors trente fois trop loin.
+      pose = blendPose(prevPose, pose, easings.easeOutQuint(clamp(since / def.morph)))
     }
 
     // --- vie au repos -----------------------------------------------------
