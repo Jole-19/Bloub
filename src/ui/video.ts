@@ -22,6 +22,29 @@ export function videoPossible() {
 }
 
 /**
+ * QUANTISEUR explicite, et pas un niveau `QUALITY_*`.
+ *
+ * Ce n'est pas un detail de reglage, c'est la clef de la qualite ici. Les niveaux
+ * nommes de mediabunny ne fixent PAS de debit : quand le navigateur sait encoder
+ * a quantiseur fixe — Chrome 117 et au-dela pour tous ces codecs — ils se
+ * traduisent en `bitrateMode: 'quantizer'` et le debit calcule ne sert qu'a
+ * choisir le niveau AVC de la chaine de codec. `QUALITY_HIGH` posait donc un QP de
+ * 22, et augmenter un debit n'y aurait rien change.
+ *
+ * Mesure sur une image du bot, erreur au bord contre la source :
+ * QP 22 → 3,06 · QP 16 → 1,75 · QP 10 → 0,58. On prend 12, presque transparent,
+ * pour environ 50 % d'octets de plus qu'a 22 — un export offline n'a pas de
+ * contrainte de taille, et c'est le bord des formes qui fait toute l'impression
+ * de proprete.
+ *
+ * Le debit accompagne le quantiseur comme REPLI : si un navigateur ne sait pas
+ * encoder a quantiseur fixe, mediabunny bascule dessus au lieu d'echouer. Six
+ * megabits pour du 1024 a 30 images est genereux sur des aplats.
+ */
+const QP = 12
+const DEBIT_REPLI = 6_000_000
+
+/**
  * Encode une suite d'images en MP4.
  *
  * `rend` dessine l'image `i` DANS le canvas fourni, puis rend la main. Les images
@@ -36,12 +59,15 @@ export async function versMp4(
   rend: (index: number) => void | Promise<void>,
   avance?: (fait: number, total: number) => void
 ): Promise<Blob> {
-  const { BufferTarget, CanvasSource, Mp4OutputFormat, Output, QUALITY_HIGH } = await import(
+  const { BufferTarget, CanvasSource, Mp4OutputFormat, Output, Quality } = await import(
     'mediabunny'
   )
 
   const sortie = new Output({ format: new Mp4OutputFormat(), target: new BufferTarget() })
-  const source = new CanvasSource(canvas, { codec: 'avc', quality: QUALITY_HIGH })
+  const source = new CanvasSource(canvas, {
+    codec: 'avc',
+    quality: new Quality({ quantizer: QP, bitrate: DEBIT_REPLI })
+  })
   sortie.addVideoTrack(source, { frameRate: fps })
   await sortie.start()
 
