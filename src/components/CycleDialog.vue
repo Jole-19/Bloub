@@ -9,6 +9,7 @@ import {
   type FormatCycle
 } from '@/ui/export'
 import { useModalDialog } from '@/ui/useModalDialog'
+import { videoPossible } from '@/ui/video'
 
 /**
  * Choix du format avant d'exporter le montage.
@@ -25,6 +26,16 @@ const emit = defineEmits<{ confirm: [] }>()
 
 const boite = useTemplateRef<HTMLDialogElement>('boite')
 useModalDialog(open, boite)
+
+/**
+ * La video n'est proposee que la ou le navigateur sait encoder — meme regle que
+ * la copie d'image dans la barre d'export. Sans ce filtre, choisir MP4 sur un
+ * navigateur sans `VideoEncoder` echouait sur l'erreur generique.
+ *
+ * L'import est STATIQUE et ne coute rien : `video.ts` ne charge mediabunny qu'a
+ * l'interieur de `versMp4`, donc la lib reste dans son chunk a la demande.
+ */
+const formats = FORMATS_CYCLE.filter((f) => f !== 'mp4' || videoPossible())
 
 const occupe = computed(() => props.avancement !== null)
 const pourcent = computed(() => Math.round((props.avancement ?? 0) * 100))
@@ -53,7 +64,7 @@ function confirm() {
       <fieldset class="flex flex-col gap-1" :disabled="occupe">
         <legend class="sr-only">{{ t('export.cycleFormat') }}</legend>
         <label
-          v-for="(choix, i) in FORMATS_CYCLE"
+          v-for="(choix, i) in formats"
           :key="choix"
           class="flex cursor-pointer items-center gap-2.5 rounded-lg px-2 py-1.5 text-sm transition hover:bg-black/5"
         >
