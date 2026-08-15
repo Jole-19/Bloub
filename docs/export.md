@@ -3,7 +3,7 @@
 The Personnaliser view's export bar. `src/ui/export.ts` is pure and tested (frame,
 catalogue, filename); `src/ui/capture.ts` is the DOM layer (canvas, clipboard);
 `src/components/ExportBar.vue` is presentational and only emits a format, like
-`Customizer.vue`. Everything still images is dependency-free — `XMLSerializer` and a canvas
+`Customizer.vue`. Everything still images is dependency-free: `XMLSerializer` and a canvas
 are enough. Only the **cycle video** pulls a library, and only on demand (see below).
 
 ## Nothing is reserved for the bar, and nothing should be
@@ -18,7 +18,7 @@ a calculation that already exists.
 `position: fixed` with the montage bar's own `left: 4.5rem` / `right: 24.5rem`, and
 it centres its content. That is what stops it moving: anchored inside the avatar
 column it rode the grid's interpolation, and coming back from the settings the
-closing left panel moves that column's centre by **320 px** — so the button slid
+closing left panel moves that column's centre by **320 px**, so the button slid
 into place instead of being there. The montage bar never slides for exactly this
 reason. The Personnaliser view has only one grid layout, so this position is a
 constant.
@@ -27,10 +27,10 @@ Vertically it is aimed at the bottom of the avatar's **box**, not the column's: 
 silhouette fills only about 65 % of its box's side (the viewBox keeps room for the
 animated states' rings, absent at rest), so aiming at the column left **176 px** of
 measured dead space between the ball and the button. The `min()` in the `top` calc is
-**the one from `.avatar`'s `max-w`** — same box, so the bar follows it as it shrinks
+**the one from `.avatar`'s `max-w`**, same box, so the bar follows it as it shrinks
 on a short window instead of landing on top of it.
 
-## It's a `transition`, not an `animation` — the main trap
+## It's a `transition`, not an `animation`: the main trap
 
 An animation replays on **every mount**: on reload, and on every view change. A
 transition doesn't run on an element's first computed style, so the bar is born
@@ -45,12 +45,12 @@ start state present on screen there would be nothing to interpolate from.
 The one reveal is after the intro, delayed in `App.vue` (400 ms) so the avatar reaches
 its place first. Switching views does **not** fade it in: it is pinned to the window,
 so it is born already in position, and an element that doesn't move has no business
-announcing itself. That is the montage bar's rule too — it doesn't animate between the
+announcing itself. That is the montage bar's rule too: it doesn't animate between the
 settings and the animations, because it is already there.
 
 ## The live SVG is serialised, not rebuilt
 
-This works because the bot's SVG is already self-contained: no `var(--…)`, no
+This works because the bot's SVG is already self-contained: no `var(--...)`, no
 Tailwind class, every shape carries its `fill` as a literal hex. Rebuilding a second
 render beside it would be a second source of drawing, and it would drift.
 
@@ -65,7 +65,7 @@ eyes, the rest antialiasing.
 ## The eyes export OPAQUE, in `paper`, and that's a win
 
 A paper-coloured `<path>` sits under the body (`BloubBot.vue`), so the exported image
-keeps light eyes on a dark background — real holes would make them disappear there.
+keeps light eyes on a dark background: real holes would make them disappear there.
 Don't "fix" this into transparency.
 
 ## The export frame is tighter than the screen's, and shared by all shapes
@@ -78,15 +78,15 @@ the frame on its own instead of getting clipped.
 
 ## The animation is an SVG, and that is what makes it smooth
 
-A flipbook format — WebP, GIF, APNG — is capped by its frame count. The blink lasts
+A flipbook format (WebP, GIF, APNG) is capped by its frame count. The blink lasts
 0.18 s (`BLINK_DUR`), so at 20 fps it gets three or four frames and reads as a stutter.
 An animated **SVG** doesn't have frames: the browser interpolates between keyframes, so
 the motion is smooth at the display's refresh rate however few keyframes we emit. That is
-the whole reason for this choice — an animated WebP was built first, measured, and dropped
+the whole reason for this choice: an animated WebP was built first, measured, and dropped
 for being both choppier and 10× heavier (167 kB against 16 kB).
 
 **Only the eyes are animated, and that is measured.** At rest the silhouette moves by
-1.17 units on a radius of 100 over three seconds — about a pixel and a half at export
+1.17 units on a radius of 100 over three seconds, about a pixel and a half at export
 size. So the body is emitted once, static, and all the weight of a bot animation is in its
 gaze. `liveliness` says the same thing in words: "toute la vie passe par le regard et les
 clignements".
@@ -100,8 +100,8 @@ Three things that are not optional:
 - **`transform-box: view-box` and `transform-origin: 0 0`.** A CSS transform on an SVG
   element rotates around its bounding-box centre, not the user-space origin, so without
   these the eye flies to the other side of the ball.
-- **`animation-direction: alternate`.** The gaze drift is not periodic — the periods in
-  `liveliness` are deliberately coprime so the movement never visibly repeats — so a plain
+- **`animation-direction: alternate`.** The gaze drift is not periodic: the periods in
+  `liveliness` are deliberately coprime so the movement never visibly repeats, so a plain
   loop would jump at the seam. Played forwards then backwards it rejoins itself exactly,
   and a blink in reverse is still a blink. This is the one thing the bitmap export could
   never have.
@@ -110,7 +110,7 @@ Three things that are not optional:
 
 Keyframes are emitted at 30/s: a keyframe is one matrix of text, so density is nearly free,
 and it follows the blink's asymmetric curve faithfully. Measured on the output: eye area
-921 → 193 → 933 px across the blink, sampled every 40 ms against 33 ms keyframes — the
+921 → 193 → 933 px across the blink, sampled every 40 ms against 33 ms keyframes, the
 values fall between keyframes, which is the interpolation showing.
 
 ## One PNG size, and no GIF
@@ -129,15 +129,15 @@ reason to exist. Everywhere else the animated SVG is better on every axis.
 
 **It is the only export that asks a question**, and only because GIF alpha is one bit: the
 ball's antialiased rim has to be thresholded at 50 %, which comes out as a staircase. A solid
-background smooths that rim back out because it has something to blend into — at the cost of
+background smooths that rim back out because it has something to blend into, at the cost of
 baking the colour in. Neither choice wins everywhere, so a dialog offers both, white first
 (`GifDialog.vue`, native radios so the browser gives grouping and arrow keys). Exporting at
-320 px while an avatar displays at 40–128 px softens the transparent edge further, since the
+320 px while an avatar displays at 40-128 px softens the transparent edge further, since the
 browser's downscale re-smooths it.
 
 **With a background, the eyes must take its exact colour.** They are holes filled with
 `paper`, so left at the site's off-white they show up as a slightly darker ring inside a white
-frame. `sequenceDuBot` therefore passes the matte through as `paper` — measured: eyes at
+frame. `sequenceDuBot` therefore passes the matte through as `paper`, measured: eyes at
 `255,255,255` on a white background against `249,249,249` on a transparent one.
 
 `gifAnime` **deduces** transparency from the pixels rather than being told: flattened frames
@@ -148,7 +148,7 @@ opaque ones stay in place (1). Both cases are locked by a test.
 Its LZW encoder is hand-rolled (no dependency), and it holds **the one trap of the format**:
 the encoder writes its dictionary entry right after emitting a code, while the decoder only
 writes its own when it reads the *next* code. The decoder is therefore permanently one entry
-behind, so the encoder must widen its codes one step late — `suivant > (1 << taille)`, never
+behind, so the encoder must widen its codes one step late: `suivant > (1 << taille)`, never
 `===`. Getting that wrong desynchronises the two and every reader rejects the file, with
 nothing in the structure to show why. There is a round-trip test decoding the stream back to
 its exact pixels, because structural assertions cannot catch this.
@@ -156,7 +156,7 @@ its exact pixels, because structural assertions cannot catch this.
 The palette is exact rather than dithered: the bot uses very few distinct colours (71.4 %
 transparent, 26.7 % body, 1.5 % `paper`, the rest antialiasing), so index 0 is reserved for
 transparency and the rest fit. Frames are disposed to background (`2 << 2`), the GIF
-equivalent of "do not blend" — without it the transparent areas keep the previous frame and
+equivalent of "do not blend": without it the transparent areas keep the previous frame and
 the ball drags a trail. Delays are in **hundredths** of a second, which caps the useful rate,
 and never below 2 since 0 and 1 are handled inconsistently by readers.
 
@@ -182,7 +182,7 @@ none of the still-export reasoning carries over.
 
 **The frame must be the screen's `±158`, not the tight export frame.** The margin the tight
 frame removes is exactly the one holding the animated states' rings, which reach 1.4 × the
-ball radius — 140, past the tight frame's 125. Nothing clamps those radii at runtime: it is
+ball radius: 140, past the tight frame's 125. Nothing clamps those radii at runtime: it is
 the hand-tuned `RINGS`/`SWOOSH` tables in `decor.ts` that keep them under 158. A test locks
 the relationship.
 
@@ -192,13 +192,13 @@ before counting the arcs.
 
 **`frozenAt` does not walk the montage, and `seek` is not enough either.** `apply()` dates
 the engine with `clock`, which only advances in the rAF loop and therefore stays at 0 while
-frozen — every state change would register at t=0 and the cross-fades at block joints would
+frozen: every state change would register at t=0 and the cross-fades at block joints would
 be wrong. Hence `rendAt(t)` on `BloubBot`: it resolves the block with `blockAt` and calls
 `setState` with the block's **absolute** offset, reproducing `tick()` without a clock. Proven
 by measurement: across a joint the silhouette moves 17.6 → 7.0 → 2.1 → 0.36 → 0.02 over
 ~0.3 s, the decay of an exponential ease-out. A broken morph would show one single jump.
 
-**Frames are never accumulated.** A thirty-second cycle is 624 frames — 255 MB of raw pixels
+**Frames are never accumulated.** A thirty-second cycle is 624 frames, 255 MB of raw pixels
 if kept. The MP4 path streams frame-by-frame into the encoder (awaiting each `add` is what
 applies backpressure); the GIF path renders the sequence **twice**, once to count colours and
 once to encode, which is free because the render is deterministic.
@@ -208,17 +208,17 @@ colours, so a palette filled in encounter order would gorge itself on the first 
 antialiasing and dump every ring colour into one slot. Unseen colours resolve to the nearest
 kept entry, cached so each distinct colour costs one search.
 
-**Video is always opaque** — `VideoEncoder` refuses `alpha: 'keep'` for H.264 and VP9 alike,
+**Video is always opaque**: `VideoEncoder` refuses `alpha: 'keep'` for H.264 and VP9 alike,
 so the dialog offers a background choice for the GIF only, and doesn't show the group at all
 for MP4 rather than showing it disabled.
 
 **Resolution and frame rate are per format, and mixing them up was a real bug.** The MP4 first
-inherited the GIF's 320 px / 20 fps — settings justified for the GIF by file weight, which a
+inherited the GIF's 320 px / 20 fps, settings justified for the GIF by file weight, which a
 video simply does not share, since it compresses motion instead of storing each frame. Measured
 at 93 kbps, the export had the definition of a thumbnail: that is what made it look like a GIF.
 The video is now 1024 px at 30 fps.
 
-**The quality knob is the QUANTIZER, not the bitrate — and that is genuinely counter-intuitive.**
+**The quality knob is the QUANTIZER, not the bitrate, and that is genuinely counter-intuitive.**
 mediabunny's named levels (`QUALITY_HIGH` and friends) do **not** set a bitrate when the browser
 can encode at a fixed quantizer, which Chrome has done since 117 for all these codecs. They
 resolve to `bitrateMode: 'quantizer'`, and the bitrate the library computes only picks the AVC
@@ -230,7 +230,7 @@ QP 10 → 0.58. `video.ts` therefore passes an explicit `new Quality({ quantizer
 bitrate rides along only as a **fallback** for browsers without per-frame quantizer support.
 
 Two dead ends, so nobody re-walks them: 4:2:0 chroma subsampling is **not** the culprit on a
-black bot — grey has no chrominance to subsample — though it does bleed on a *coloured* one
+black bot (grey has no chrominance to subsample) though it does bleed on a *coloured* one
 (42 MAE measured on a red/green edge), and the only real 4:4:4 reachable here is AV1's High
 profile, software-only. And hardware acceleration does not degrade quality at equal settings;
 what it does is never expose 4:4:4.

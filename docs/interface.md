@@ -4,7 +4,7 @@
 
 The paths in `SideRail.vue` and `Timeline.vue` are copied verbatim from Iconify
 packages (Solar, plus Remix for the palette). No dependency is installed, so
-`package.json` doesn't mention it — and the "everything is measured" rule does
+`package.json` doesn't mention it, and the "everything is measured" rule does
 **not** apply here.
 
 To add or change one, take the `<symbol>` body from `@iconify-json/<package>`.
@@ -20,11 +20,11 @@ falls between two words.
 
 It sets `margin: 0` everywhere, and it's the auto margin that centres a `<dialog>`
 as a modal: without `m-auto` the box sticks to the top left. Same family of trap for
-a `popover`, whose default styles set `inset: 0` — any positioning must reset the
+a `popover`, whose default styles set `inset: 0`: any positioning must reset the
 sides it doesn't use to `auto`, otherwise `top: 0` wins.
 
 Third one, and it is not about the reset: **don't nest a modal `<dialog>` under an
-ancestor that can carry `inert`.** Being promoted to the top layer does not exempt it —
+ancestor that can carry `inert`.** Being promoted to the top layer does not exempt it:
 `inert` applies to the whole subtree, so the box renders and cannot be used. `GifDialog`
 is opened by the export bar but sits *outside* it for exactly this reason, since the bar
 goes `inert` while it is hidden.
@@ -35,7 +35,7 @@ goes `inert` while it is hidden.
 and it's the **interpolation of the tracks** that slides the avatar. Written in
 `styles.css` rather than in utilities because both states need to be literal values
 for the transition to have something to interpolate. Don't try `order` or
-`flex-direction` — they don't animate.
+`flex-direction`, they don't animate.
 
 **Unmounting a panel does not remove its track**: the grid keeps its 20rem and the
 avatar stays centred 180 px too far left. Hence `.scene--seule`, which cancels both
@@ -45,8 +45,8 @@ them.
 **A zero-width column still contributes its `column-gap`.** Outside the settings the
 left track is `0`, but the gutter after it is not, so the avatar column starts at
 **4.5rem** (2rem of scene margin + 2.5rem of gutter), not at 2rem. That is why
-anything pinned to the window and meant to line up with the avatar — the montage bar,
-the export bar — uses `left: 4.5rem` as the counterpart of `right: 24.5rem`
+anything pinned to the window and meant to line up with the avatar (the montage bar,
+the export bar) uses `left: 4.5rem` as the counterpart of `right: 24.5rem`
 (20 + 2.5 + 2). Aiming at the scene's padding instead leaves it 20 px off centre,
 which is exactly enough to see under the ball.
 
@@ -56,12 +56,12 @@ It is `fixed` and vertically centred on the window. The scene deliberately keeps
 padding for it: reserving a column's worth of space pushed the avatar right, and the
 rail is supposed to sit over the page, not beside it. The only content that reaches far
 enough left to pass under it is the settings panel, so that panel carries its own
-`lg:pl-14` — don't move the clearance back onto the scene.
+`lg:pl-14`. Don't move the clearance back onto the scene.
 
 ## The avatar's `transition` is outside the width query, its positions are inside
 
 Bringing them together looks tidier and breaks two things: the arrival's fade-in
-applies at every size, and — more importantly — a `transition` redeclared in the
+applies at every size, and, more importantly, a `transition` redeclared in the
 block below **evicts opacity**. A property absent from the list stops transitioning
 altogether, so the ball would appear all at once.
 
@@ -69,7 +69,7 @@ altogether, so the ball would appear all at once.
 
 The body's `overflow` is **propagated to the viewport** when the root is `visible`,
 so putting it there clips nothing. And `clip` rather than `hidden`, on the x axis
-only — `hidden` would make it a scroll container, which would force `overflow-y` to
+only: `hidden` would make it a scroll container, which would force `overflow-y` to
 follow and cut off the bottom of the customiser in a short window.
 
 ## On a large screen the page doesn't scroll, the panels do
@@ -77,7 +77,7 @@ follow and cut off the bottom of the customiser in a short window.
 `#app` clips both axes past 64rem and the panels take `overflow-y: auto`. The trap
 that cost an iteration: an **automatic** grid track takes its content's height and
 ignores the container's ceiling, so the panel got clipped without having anything to
-scroll. Hence `grid-template-rows: minmax(0, 1fr)` on the scene — that's what makes
+scroll. Hence `grid-template-rows: minmax(0, 1fr)` on the scene. that's what makes
 the height definite and arms `overflow-y`.
 
 ## Room for the timeline is reserved in the Animations view only
@@ -86,8 +86,8 @@ Reserved in every view (a `padding-bottom` on the scene), it took 236 px off the
 right-hand panel in favour of emptiness that nothing filled: the customiser scrolled
 under a third of a blank screen.
 
-What that reservation *also* held — the avatar and the settings panel, which must
-not re-centre when you switch tabs — is carried by those two columns themselves, in
+What that reservation *also* held (the avatar and the settings panel, which must
+not re-centre when you switch tabs) is carried by those two columns themselves, in
 the form of the same band height (`100dvh - 3rem - var(--timeline)`). That's why the
 settings panel is `self-start` plus internal centring rather than `self-center`:
 centring on the column would drop it a hundred pixels the moment the column ran to
@@ -95,7 +95,7 @@ the bottom.
 
 ## The big footer word is `absolute`, not `fixed`
 
-`#app` is exactly the window's height, so the bottom is the same — but a fixed
+`#app` is exactly the window's height, so the bottom is the same, but a fixed
 element is *out* of the document and doesn't follow the rubber-band when you try to
 scroll a page that doesn't scroll. As `absolute` it goes along with the gesture.
 

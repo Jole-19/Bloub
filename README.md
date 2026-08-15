@@ -20,7 +20,7 @@ pnpm test     # vitest
 pnpm build    # vue-tsc --noEmit && vite build
 ```
 
-Vue 3, Vite, TypeScript, Tailwind 4. No ESLint and no Prettier — `vue-tsc` is the
+Vue 3, Vite, TypeScript, Tailwind 4. No ESLint and no Prettier: `vue-tsc` is the
 only gate, so run `pnpm build` before you call something done.
 
 ## What's in it
@@ -28,13 +28,13 @@ only gate, so run `pnpm build` before you call something done.
 The rail on the left switches between three views. **Customise** offers 8 body
 shapes, 12 colours and 16 rest expressions, kept between visits. **Animations** is
 a small editor: arrange states into a timeline, set how long each is held, save the
-result. **Settings** holds the language — French, English or Chinese — and the
+result. **Settings** holds the language (French, English or Chinese) and the
 credits.
 
 Two URLs are worth knowing:
 
-- `#planche` — the 14 states side by side, frozen. Quick visual check.
-- `#etat=orbit&stop` — opens one state directly, playback paused.
+- `#planche`: the 14 states side by side, frozen. Quick visual check.
+- `#etat=orbit&stop`: opens one state directly, playback paused.
 
 ![The 14 states, frozen side by side](docs/states.png)
 
@@ -45,17 +45,17 @@ state measured off the frames: silhouettes by sub-pixel ray casting, eyes by
 capsule fitting, colours and stroke widths by direct sampling.
 
 So the constants in the code are **measurements**, and rounding them to friendlier
-values breaks the resemblance — which is the only thing this project is trying to
+values breaks the resemblance, which is the only thing this project is trying to
 get right. A few are counter-intuitive enough to be worth knowing before you
 correct anything:
 
 | What you'd assume | What the video shows |
 |---|---|
 | The eyes lean `//` | They lean `\\`, around 26° off vertical |
-| The body is a squircle | It's a perfect circle — radial deviation under 0.7% |
+| The body is a squircle | It's a perfect circle, radial deviation under 0.7% |
 | Transitions are springs | Exponential ease-outs; the body never overshoots |
 | The comet crosses the screen | The dot stays put, the trail orbits it |
-| The avatar floats at rest | It doesn't — the life is gaze drift and blinking |
+| The avatar floats at rest | It doesn't. The life is gaze drift and blinking |
 
 [docs/measurements.md](docs/measurements.md) has the rest, including how to
 regenerate the extracted profiles.
@@ -82,7 +82,7 @@ the DOM-less test suite possible.
 <BloubBot state="orbit" :size="120" :frozen-at="1.2" />
 ```
 
-`block` is the playback cursor — a montage can play the same state twice, so the
+`block` is the playback cursor: a montage can play the same state twice, so the
 index is what identifies where you are; `state` follows it as an output. Pass
 `frozenAt` and the component renders one exact frame with no animation loop, which
 is how the thumbnails and the state board are drawn.
@@ -93,7 +93,7 @@ Props: `size`, `shape`, `color`, `expression`, `paper`, `frozenAt`, `cycle`,
 
 ## License
 
-MIT — see [LICENSE](LICENSE).
+MIT. See [LICENSE](LICENSE).
 
 Not affiliated with, endorsed by or connected to x.ai. It recreates the visual
 behaviour of their bot avatar as an exercise; "Grok" and "x.ai" belong to their

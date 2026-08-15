@@ -6,8 +6,8 @@
 prop, the frozen state board and the DOM-less tests possible.
 
 So `src/bot/` must not gain internal state that depends on real time, nor
-`Date.now()`, nor a Vue import. Vue code shared between components — composables,
-display settings — goes in `src/ui/` instead.
+`Date.now()`, nor a Vue import. Vue code shared between components (composables,
+display settings) goes in `src/ui/` instead.
 
 **`sample()` must not mutate either.** Purging a "stale" previous state during
 playback looks like an innocent optimisation and makes the engine non-replayable:
@@ -17,17 +17,17 @@ already went wrong once, on the shape morph, and there is a dedicated test for i
 
 ## The montage holds or cuts, it never scales time
 
-`cycles.ts` stretches a block by letting the state run longer — looping states do
-extra turns, the others hold their final pose — and shortens it by cutting. It
+`cycles.ts` stretches a block by letting the state run longer (looping states do
+extra turns, the others hold their final pose) and shortens it by cutting. It
 never multiplies local time by a speed factor, which would be tempting and would
 break every measured duration at once.
 
 Hence two floors:
 
-- `MIN_BLOCK` (0.6 s) — the engine keeps only one slot of history, so a block
+- `MIN_BLOCK` (0.6 s): the engine keeps only one slot of history, so a block
   shorter than the next one's entry morph would jump on screen. 0.6 s is also the
   longest `morph` in the catalogue (`orbit`).
-- `StateDef.minDuration` — the date at which the animation resolves, read off the
+- `StateDef.minDuration`: the date at which the animation resolves, read off the
   constants in that state's `pose()`. Worth filling in for any new narrative
   state.
 
@@ -44,7 +44,7 @@ if it isn't expressible as `r(theta)`.
 
 `profiles.ts` is generated from the video and drives the animated states.
 `skins.ts` holds the customiser's shapes, built analytically. A shape the user
-picks only replaces the body on states flagged `baseBody` — `idle`, `wink`,
+picks only replaces the body on states flagged `baseBody`: `idle`, `wink`,
 `wide`, `notify` and `swirl`. Everywhere else the silhouette *is* the animation
 and must not be overwritten.
 
@@ -62,7 +62,7 @@ passing behind the ball reappears inside the eyes.
 ## Anything sitting "on" the body must follow its real radius
 
 The eyes live on a sphere of radius 1; on a non-circular shape they leave the
-silhouette and the mask cuts them. Hence `radiusAtAngle` — defined in `shape.ts`,
+silhouette and the mask cuts them. Hence `radiusAtAngle`, defined in `shape.ts`,
 applied by `engine.ts` to the eyes and to the notification pastille. Any new
 element anchored to the outline needs the same treatment.
 
@@ -77,7 +77,7 @@ That depth sort is what makes them read as orbits rather than as flat drawing.
 
 ## Springs are local and deliberate
 
-Transitions are exponential ease-outs — the curve measured on the video — and the
+Transitions are exponential ease-outs (the curve measured on the video) and the
 body never overshoots. The one spring effect is the notification pastille's pop
 (`NOTIF_POP = 1.14`). There is deliberately **no spring engine** in the project;
 a new bouncing effect belongs in the state that needs it.
@@ -85,7 +85,7 @@ a new bouncing effect belongs in the state that needs it.
 ## The rest expression is adjustable, the states' silhouettes are not
 
 Among the catalogue states, only `idle` carries `baseFace: true`. The other states
-that show a face — wink, wide eyes, notification — have an expression measured off
+that show a face (wink, wide eyes, notification) have an expression measured off
 the video, and that is precisely what's being reproduced. (`swirl` also carries
 `baseFace`, for the reason below.)
 
@@ -94,7 +94,7 @@ the video, and that is precisely what's being reproduced. (`swirl` also carries
 `EyeCfg.tilt` tilts each eye independently, which anger and sadness need since
 they call for mirrored tilts. But an eye whose width/height ratio approaches 1 is
 a circle: it looks the same at every angle and the tilt is invisible. This went
-wrong once, so `expressions.test.ts` now enforces a two-tier rule — the ratio must
+wrong once, so `expressions.test.ts` now enforces a two-tier rule: the ratio must
 fall outside `[0.6, 1.7]` for a tilt of 20° or more, and outside `[0.8, 1.25]`
 below that.
 
@@ -102,7 +102,7 @@ below that.
 
 The catalogues (`states.ts`, `skins.ts`, `expressions.ts`) carry **ids**, and the
 display resolves `t('states.orbit')`. The corollary is that their ids are
-**literal unions** (`ShapeId`, `ColorId`, `ExpressionId`, `StateId`) — not for
+**literal unions** (`ShapeId`, `ColorId`, `ExpressionId`, `StateId`), not for
 neatness, but because that is what makes the compiler check that every entry has
 its label in all three languages. Adding a shape without its label doesn't
 compile.
@@ -113,8 +113,8 @@ holds a hardcoded French string per state. Nothing reads it.
 ## One state is not measured: `swirl`
 
 It's the entry transition for the settings view, chosen rather than measured (like
-`--ink`). It sits deliberately **outside `SEQUENCE`** — so it appears in neither
-the palette nor the board, and a test locks that — and carries both `baseBody` and
+`--ink`). It sits deliberately **outside `SEQUENCE`** (so it appears in neither
+the palette nor the board, and a test locks that) and carries both `baseBody` and
 `baseFace`, which is what lets it morph from the user's chosen shape towards the
 ball and lets gaze tracking apply from its very first frame.
 
@@ -126,17 +126,17 @@ compensating for the expression's orientation would read its **arrival** value
 while the morph was still running, and the eyes would jump on every mood change.
 
 It also has to be absolute on **both** axes. In relative terms the eye height
-followed each expression's own — and "neutral" looks about 30° higher than the
-others — so the eyes dropped all at once on the first mood change. What
+followed each expression's own, and "neutral" looks about 30° higher than the
+others, so the eyes dropped all at once on the first mood change. What
 distinguishes a mood during tracking is the **shape** of its eyes, not where it
 looks.
 
 `spin` is a turn taken *on the way*: free on a sphere, and with no effect on the
-destination since −360° is the same angle as 0.
+destination since -360° is the same angle as 0.
 
 **`mix` and `wander` are not the same thing.** `mix` says how much the outside
 world commands the direction; `wander` is what remains of automatic drift. When
-the pointer moves, the drift must die out — added together, the bot would look
+the pointer moves, the drift must die out: added together, the bot would look
 like it was hunting for the cursor without ever holding it. But with **no** pointer
 (arriving by keyboard, by touch, or the mouse having left the window) the head must
 stay turned *and* keep living. Conflating them froze the gaze the moment the view
@@ -145,12 +145,12 @@ along with the pose.
 
 **`setLook` refuses a non-finite target.** The engine keeps the last one: a `NaN`
 set even once takes up residence and the bot never rests again. This happened for
-real — a `getBoundingClientRect` on a zero-sized box (hidden browser pane) gives
+real: a `getBoundingClientRect` on a zero-sized box (hidden browser pane) gives
 `0 / 0` in the caller. The caller is fixed, but the engine shouldn't depend on its
 callers being careful.
 
 ## Colours: two blacks that don't move together
 
-`--ink` (`styles.css`) is the **interface** colour — a night blue, chosen, not
+`--ink` (`styles.css`) is the **interface** colour, a night blue, chosen, not
 measured. The video's black is the bot's, in `skins.ts` (`encre`, `#0a0a0c`).
 Retouching one doesn't touch the other.
