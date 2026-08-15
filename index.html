@@ -2,7 +2,7 @@
 <!--
   `lang` est reecrit au demarrage par src/i18n : la valeur ici est celle du
   premier rendu, avant que la langue du visiteur soit connue. Les meta, elles,
-  restent en francais quoi qu'il arrive — les robots sociaux (X, Slack, Discord)
+  restent en francais quoi qu'il arrive : les robots sociaux (X, Slack, Discord)
   n'executent pas de JavaScript, donc l'apercu partage est toujours celui du
   HTML servi. Une seule langue a choisir, autant que ce soit celle de l'auteur.
 -->
@@ -12,7 +12,7 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
 
-    <title>bloub — avatar SVG animé</title>
+    <title>bloub, avatar SVG animé</title>
     <!--
       « bloub » est le nom du produit ; « l'avatar du bot de x.ai » est la
       matiere reproduite. Les deux doivent rester distincts : le projet n'est
@@ -31,7 +31,7 @@
 
     <!-- Open Graph : attribut `property`, alors que les balises X prennent `name` -->
     <meta property="og:type" content="website" />
-    <meta property="og:title" content="bloub — avatar SVG animé" />
+    <meta property="og:title" content="bloub, avatar SVG animé" />
     <meta
       property="og:description"
       content="D'après l'avatar du bot de x.ai : une forme noire qui morphe entre 14 états, relevés au pixel sur la vidéo de référence."
@@ -48,23 +48,26 @@
     <meta name="twitter:card" content="summary_large_image" />
 
     <!--
-      A DECOMMENTER LE JOUR DE LA MISE EN LIGNE, avec l'URL reelle.
-      Ces trois balises exigent une URL ABSOLUE (protocole + hote) : une URL
-      relative est ignoree par les robots, et une URL inventee vaut moins que
-      pas de balise du tout. `public/og.png` est deja la, en 1200x630.
-
-      <link rel="canonical" href="https://EXEMPLE.vercel.app/" />
-      <meta property="og:url" content="https://EXEMPLE.vercel.app/" />
-      <meta property="og:image" content="https://EXEMPLE.vercel.app/og.png" />
-      <meta property="og:image:width" content="1200" />
-      <meta property="og:image:height" content="630" />
-      <meta property="og:image:alt" content="L'avatar noir du bot et le logotype BLOUB, sur fond clair" />
+      URL ABSOLUE obligatoire (protocole + hote) : une URL relative est ignoree
+      par les robots sociaux, qui ne connaissent pas la page d'ou ils viennent.
+      Les trois URL ci-dessous sont donc a reprendre si le domaine change, elles
+      ne se deduisent de rien.
     -->
+    <link rel="canonical" href="https://bloub.vercel.app/" />
+    <meta property="og:url" content="https://bloub.vercel.app/" />
+    <meta property="og:image" content="https://bloub.vercel.app/og.png" />
+    <meta property="og:image:type" content="image/png" />
+    <meta property="og:image:width" content="1200" />
+    <meta property="og:image:height" content="630" />
+    <meta
+      property="og:image:alt"
+      content="L'avatar noir du bot et le logotype BLOUB, sur fond clair"
+    />
 
     <!--
       Le `.ico` d'abord et le SVG apres : a pertinence egale les navigateurs
       retiennent le DERNIER, et on veut le vectoriel quand il est compris.
-      Le `.ico` reste necessaire en 2026 — Safari ne lit le SVG qu'a partir de
+      Le `.ico` reste necessaire en 2026 : Safari ne lit le SVG qu'a partir de
       la version 26, et iOS pas du tout avant 18.7.
 
       Il embarque 16, 32 et 48 (48 pour les onglets a fort zoom et le raccourci
@@ -73,7 +76,7 @@
       navigateur qui cherche une icone de 48 reechantillonne le 32 au lieu
       d'ouvrir l'image de 48 qui est dans le fichier. Le `.ico` ignore
       `prefers-color-scheme`, il porte la seule variante claire (corps #0a0a0c,
-      yeux troues) — d'ou le SVG juste apres, qui lui s'inverse.
+      yeux troues), d'ou le SVG juste apres, qui lui s'inverse.
     -->
     <link rel="icon" href="/favicon.ico" sizes="16x16 32x32 48x48" />
     <link rel="icon" href="/favicon.svg" type="image/svg+xml" />
