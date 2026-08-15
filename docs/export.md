@@ -212,6 +212,29 @@ kept entry, cached so each distinct colour costs one search.
 so the dialog offers a background choice for the GIF only, and doesn't show the group at all
 for MP4 rather than showing it disabled.
 
-Measured on the default cycle (31.2 s, 624 frames, 320²): MP4 677 kB in ~3 s, GIF 1.5 MB in
-~16 s. Real-time recording via `MediaRecorder` would have been dependency-free but takes the
-full 31.2 s, which is why the encoder won.
+**Resolution and frame rate are per format, and mixing them up was a real bug.** The MP4 first
+inherited the GIF's 320 px / 20 fps — settings justified for the GIF by file weight, which a
+video simply does not share, since it compresses motion instead of storing each frame. Measured
+at 93 kbps, the export had the definition of a thumbnail: that is what made it look like a GIF.
+The video is now 1024 px at 30 fps.
+
+**The quality knob is the QUANTIZER, not the bitrate — and that is genuinely counter-intuitive.**
+mediabunny's named levels (`QUALITY_HIGH` and friends) do **not** set a bitrate when the browser
+can encode at a fixed quantizer, which Chrome has done since 117 for all these codecs. They
+resolve to `bitrateMode: 'quantizer'`, and the bitrate the library computes only picks the AVC
+level in the codec string. Captured off the real encoder: the config arrived with **no `bitrate`
+field at all** and a QP of 22 on every frame. Raising a bitrate would have changed nothing.
+
+Measured edge error against the source, on one frame of the bot: QP 22 → 3.06, QP 16 → 1.75,
+QP 10 → 0.58. `video.ts` therefore passes an explicit `new Quality({ quantizer, bitrate })`; the
+bitrate rides along only as a **fallback** for browsers without per-frame quantizer support.
+
+Two dead ends, so nobody re-walks them: 4:2:0 chroma subsampling is **not** the culprit on a
+black bot — grey has no chrominance to subsample — though it does bleed on a *coloured* one
+(42 MAE measured on a red/green edge), and the only real 4:4:4 reachable here is AV1's High
+profile, software-only. And hardware acceleration does not degrade quality at equal settings;
+what it does is never expose 4:4:4.
+
+Measured on the default cycle (31.2 s): MP4 936 frames at 1024², 5.48 MB in ~4 s; GIF 624 frames
+at 320², 1.5 MB in ~16 s. Real-time recording via `MediaRecorder` would have been dependency-free
+but takes the full 31.2 s, which is why the encoder won.
