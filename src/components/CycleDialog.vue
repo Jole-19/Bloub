@@ -5,11 +5,11 @@ import {
   FONDS_GIF,
   FORMATS_CYCLE,
   cycleAccepteTransparence,
+  videoPossible,
   type FondGif,
   type FormatCycle
 } from '@/ui/export'
 import { useModalDialog } from '@/ui/useModalDialog'
-import { videoPossible } from '@/ui/video'
 
 /**
  * Choix du format avant d'exporter le montage.
@@ -32,8 +32,8 @@ useModalDialog(open, boite)
  * la copie d'image dans la barre d'export. Sans ce filtre, choisir MP4 sur un
  * navigateur sans `VideoEncoder` echouait sur l'erreur generique.
  *
- * L'import est STATIQUE et ne coute rien : `video.ts` ne charge mediabunny qu'a
- * l'interieur de `versMp4`, donc la lib reste dans son chunk a la demande.
+ * Le garde vient de `export.ts` et SURTOUT PAS de `video.ts` : l'importer d'ici
+ * suffirait a ramener mediabunny dans le chunk d'entree (voir `videoPossible`).
  */
 const formats = FORMATS_CYCLE.filter((f) => f !== 'mp4' || videoPossible())
 

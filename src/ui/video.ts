@@ -16,11 +16,6 @@
  * un fond, la ou le GIF laisse le choix.
  */
 
-/** Le navigateur sait-il encoder une video ici ? */
-export function videoPossible() {
-  return typeof VideoEncoder !== 'undefined'
-}
-
 /**
  * QUANTISEUR explicite, et pas un niveau `QUALITY_*`.
  *

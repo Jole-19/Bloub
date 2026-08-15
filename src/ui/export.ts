@@ -269,3 +269,17 @@ export function nomFichier(
   )
   return `bloub${morceaux.map((m) => `-${m}`).join('')}.${extension}`
 }
+
+/**
+ * Le navigateur sait-il encoder une video ici ?
+ *
+ * Ce garde vit ICI et pas dans `video.ts`, et ce n'est pas un rangement : le
+ * moindre import statique de `video.ts` ramene mediabunny dans le chunk d'entree.
+ * `video.ts` ne charge la lib qu'a l'interieur de `versMp4`, mais Rollup ne peut
+ * plus sortir un module a la fois importe statiquement et dynamiquement — il le
+ * signale par `INEFFECTIVE_DYNAMIC_IMPORT` — et les 43 ko gzip repartent au
+ * premier chargement. C'est arrive une fois, pour cette fonction de deux lignes.
+ */
+export function videoPossible() {
+  return typeof VideoEncoder !== 'undefined'
+}
