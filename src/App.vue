@@ -25,7 +25,6 @@ import {
   ACTION_BY_ID,
   ANIM_IMAGES,
   ANIM_PAS,
-  CYCLE_PAS,
   CYCLE_TAILLE,
   FOND_GIF_DEFAUT,
   FORMAT_CYCLE_DEFAUT,
@@ -34,6 +33,7 @@ import {
   BLANC,
   couleurDeFond,
   cycleImages,
+  cyclePas,
   nomFichier,
   type ActionId,
   type EtatExport,
@@ -521,22 +521,25 @@ const avancementCycle = ref<number | null>(null)
 async function exporteCycle() {
   if (avancementCycle.value !== null) return
   const blocs = cycle.value.blocks
-  const images = cycleImages(totalDuration(blocs))
+  const format = formatCycle.value
+  const images = cycleImages(totalDuration(blocs), format)
+  const pas = cyclePas(format)
+  const taille = CYCLE_TAILLE[format]
   const reglages = { shape: shape.value, color: color.value, expression: expression.value }
   const suit = (fait: number, total: number) => (avancementCycle.value = fait / total)
 
   avancementCycle.value = 0
   try {
-    const mp4 = formatCycle.value === 'mp4'
+    const mp4 = format === 'mp4'
     // La video n'a pas d'alpha : elle impose le blanc. Le GIF, lui, garde le choix.
     const fichier = mp4
-      ? await cycleVersMp4(reglages, blocs, CYCLE_TAILLE, images, CYCLE_PAS, BLANC, suit)
+      ? await cycleVersMp4(reglages, blocs, taille, images, pas, BLANC, suit)
       : await cycleVersGif(
           reglages,
           blocs,
-          CYCLE_TAILLE,
+          taille,
           images,
-          CYCLE_PAS,
+          pas,
           couleurDeFond(fondCycle.value),
           suit
         )

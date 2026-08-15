@@ -188,7 +188,13 @@ function onRemove() {
     <!-- rien ne se selectionne dans une barre d'outils : ca ne sert a personne
          et ca surligne tout des qu'on glisse une carte ou la tete de lecture -->
     <div class="flex h-full flex-col gap-2 select-none">
-      <div class="flex items-center gap-1">
+      <!--
+        Le nom du montage a gauche, ce qu'on en fait a droite : l'export est une
+        action sur le CYCLE, comme le renommer ou le supprimer, pas un reglage
+        d'affichage. En bas il voisinait la loupe et l'apercu, qui eux ne changent
+        que la facon de regarder — et il s'y lisait comme une icone de plus.
+      -->
+      <div class="flex items-center justify-between gap-1">
         <CycleMenu
           v-model:active-id="activeId"
           :cycles="cycles"
@@ -197,6 +203,29 @@ function onRemove() {
           @rename="askRename"
           @remove="askRemove"
         />
+
+        <button
+          type="button"
+          class="flex h-8 shrink-0 cursor-pointer items-center gap-2 rounded-xl bg-[var(--ink)] pr-3.5 pl-3 text-sm font-medium text-[var(--paper)] shadow-sm transition hover:opacity-90 active:scale-95"
+          @click="emit('exporter')"
+        >
+          <!-- solar:download-minimalistic-linear, la meme que la barre d'export -->
+          <svg width="16" height="16" viewBox="0 0 24 24" aria-hidden="true">
+            <g
+              fill="none"
+              stroke="currentColor"
+              stroke-linecap="round"
+              stroke-linejoin="round"
+              stroke-width="1.5"
+            >
+              <path
+                d="M3 15C3 17.8284 3 19.2426 3.87868 20.1213C4.75736 21 6.17157 21 9 21H15C17.8284 21 19.2426 21 20.1213 20.1213C21 19.2426 21 17.8284 21 15"
+              />
+              <path d="M12 3V16M8 11.625L12 16L16 11.625" />
+            </g>
+          </svg>
+          {{ t('timeline.export') }}
+        </button>
       </div>
 
       <TimelineTrack
@@ -253,38 +282,6 @@ function onRemove() {
           </span>
         </span>
 
-        <span class="group relative flex">
-          <button
-            type="button"
-            class="flex h-7 w-7 cursor-pointer items-center justify-center rounded-lg text-[var(--muted)] transition hover:bg-black/5 hover:text-[var(--ink)]"
-            :aria-label="t('timeline.export')"
-            @click="emit('exporter')"
-          >
-            <!-- solar:download-minimalistic-linear, la meme que la barre d'export
-                 de la vue Personnaliser : c'est la meme action, sur une autre
-                 matiere -->
-            <svg width="17" height="17" viewBox="0 0 24 24" aria-hidden="true">
-              <g
-                fill="none"
-                stroke="currentColor"
-                stroke-linecap="round"
-                stroke-linejoin="round"
-                stroke-width="1.5"
-              >
-                <path
-                  d="M3 15C3 17.8284 3 19.2426 3.87868 20.1213C4.75736 21 6.17157 21 9 21H15C17.8284 21 19.2426 21 20.1213 20.1213C21 19.2426 21 17.8284 21 15"
-                />
-                <path d="M12 3V16M8 11.625L12 16L16 11.625" />
-              </g>
-            </svg>
-          </button>
-          <span
-            class="pointer-events-none absolute bottom-full left-1/2 mb-2 -translate-x-1/2 translate-y-1 rounded-lg bg-[var(--ink)] px-2.5 py-1.5 text-xs whitespace-nowrap text-[var(--paper)] opacity-0 transition group-hover:translate-y-0 group-hover:opacity-100 group-focus-within:translate-y-0 group-focus-within:opacity-100"
-            role="tooltip"
-          >
-            {{ t('timeline.export') }}
-          </span>
-        </span>
       </div>
     </div>
 

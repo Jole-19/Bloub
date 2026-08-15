@@ -4,6 +4,7 @@ import {
   ACTIONS,
   BLANC,
   CYCLE_FPS,
+  CYCLE_TAILLE,
   DEMI_ECRAN,
   FORMATS_CYCLE,
   FORMAT_CYCLE_DEFAUT,
@@ -129,10 +130,28 @@ describe('export d un cycle', () => {
     expect(cycleAccepteTransparence('mp4')).toBe(false)
   })
 
-  it('compte les images d apres la duree', () => {
-    expect(cycleImages(31.2)).toBe(Math.round(31.2 * CYCLE_FPS))
+  it('compte les images d apres la duree et le format', () => {
+    expect(cycleImages(31.2, 'mp4')).toBe(Math.round(31.2 * CYCLE_FPS.mp4))
+    expect(cycleImages(31.2, 'gif')).toBe(Math.round(31.2 * CYCLE_FPS.gif))
     // un montage minuscule doit quand meme donner une image
-    expect(cycleImages(0)).toBe(1)
+    expect(cycleImages(0, 'mp4')).toBe(1)
+  })
+
+  /*
+   * Les reglages sont SEPARES par format, et c'est la correction d'une vraie
+   * erreur : le MP4 avait herite du 320 px / 20 img/s du GIF, justifie chez lui
+   * par le poids. A 93 kbps mesures, la video avait la definition d'une vignette.
+   * Une video compresse le mouvement, elle n'a pas cette contrainte.
+   */
+  it('exporte la video plus grande et plus fluide que le gif', () => {
+    expect(CYCLE_TAILLE.mp4).toBeGreaterThan(CYCLE_TAILLE.gif)
+    expect(CYCLE_FPS.mp4).toBeGreaterThan(CYCLE_FPS.gif)
+    expect(CYCLE_TAILLE.mp4).toBeGreaterThanOrEqual(1024)
+  })
+
+  /* Le delai d'un GIF se compte en centiemes : 20 img/s tombe juste, 30 non. */
+  it('garde une cadence gif exprimable en centiemes de seconde', () => {
+    expect(Number.isInteger(100 / CYCLE_FPS.gif)).toBe(true)
   })
 })
 

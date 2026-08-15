@@ -97,11 +97,14 @@ function confirm() {
 
       <!-- la progression remplace les boutons : rien d'autre a faire qu'attendre -->
       <div v-if="occupe" class="flex flex-col gap-1.5">
+        <!--
+          Pas de `transition` sur la largeur : une transition sur `width` passe par
+          le layout, donc par le thread principal — que l'encodage sature. La barre
+          restait figee sur sa premiere valeur pendant que le pourcentage, lui,
+          avancait. Et elle n'apporte rien : la valeur change des centaines de fois.
+        -->
         <div class="h-1.5 overflow-hidden rounded-full bg-black/10">
-          <div
-            class="h-full rounded-full bg-[var(--ink)] transition-[width] duration-150"
-            :style="{ width: `${pourcent}%` }"
-          />
+          <div class="h-full rounded-full bg-[var(--ink)]" :style="{ width: `${pourcent}%` }" />
         </div>
         <p class="text-xs tabular-nums text-[var(--muted)]">
           {{ t('export.cycleProgress') }} {{ pourcent }} %

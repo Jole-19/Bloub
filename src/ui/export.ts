@@ -142,16 +142,26 @@ export const FORMATS_CYCLE: FormatCycle[] = ['mp4', 'gif']
 export const FORMAT_CYCLE_DEFAUT: FormatCycle = 'mp4'
 
 /**
- * Cadence du cycle exporte. Vingt images par seconde : au-dela, le GIF ne suit
- * pas (son delai est en centiemes de seconde) et chaque image ajoutee pese sur
- * les deux formats.
+ * Cadence et taille, SEPAREES par format — les avoir mutualisees etait une
+ * erreur : le GIF est contraint par son poids, la video ne l'est pas du tout.
+ *
+ * GIF : 20 images par seconde et 320 px. Son delai se compte en centiemes de
+ * seconde, et chaque image ajoutee pese en clair dans le fichier.
+ *
+ * MP4 : 30 images par seconde et 1024 px. Une video compresse le mouvement au
+ * lieu de stocker chaque image, donc monter en resolution et en cadence coute
+ * peu — mesure sur un disque net, passer de 320 a 1024 et de 20 a 30 images fait
+ * monter le debit de 93 a 342 kbps seulement. A 320 px et 93 kbps, l'export avait
+ * la definition d'une vignette : c'est ce qui lui donnait un air de GIF.
  */
-export const CYCLE_FPS = 20
-export const CYCLE_PAS = 1 / CYCLE_FPS
-export const CYCLE_TAILLE = 320
+export const CYCLE_FPS = { gif: 20, mp4: 30 } as const
+export const CYCLE_TAILLE = { gif: 320, mp4: 1024 } as const
+
+export const cyclePas = (format: FormatCycle) => 1 / CYCLE_FPS[format]
 
 /** Combien d'images pour un cycle de `duree` secondes. */
-export const cycleImages = (duree: number) => Math.max(1, Math.round(duree * CYCLE_FPS))
+export const cycleImages = (duree: number, format: FormatCycle) =>
+  Math.max(1, Math.round(duree * CYCLE_FPS[format]))
 
 /**
  * La video est TOUJOURS opaque : `VideoEncoder` refuse `alpha: 'keep'`, en H.264
