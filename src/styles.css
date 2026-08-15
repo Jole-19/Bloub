@@ -146,7 +146,7 @@ body,
    * dans le flux et accompagne le geste. En `absolute` il accompagne la page.
    */
   position: absolute;
-  /* aligne a gauche sur le panneau des reglages : meme retrait que son `pl-24` */
+  /* degage le rail, qui flotte (`fixed left-4`) et ne reserve rien dans la scene */
   left: 6rem;
   /* legerement sous le bord : c'est ce qui fait mordre les lettres par l'ecran */
   bottom: -0.1em;
@@ -246,10 +246,11 @@ body,
  * D'ou aussi le fait que la barre soit montee PENDANT l'arrivee, juste masquee :
  * sans etat de depart present a l'ecran, il n'y aurait rien a interpoler.
  *
- * Le RETARD, lui, n'est pas ici mais dans `App.vue` : il n'est pas le meme selon
- * ce qu'on attend. Apres l'arrivee, il laisse l'avatar rejoindre sa place ; en
- * venant d'une autre vue, il laisse les colonnes finir de s'interpoler, ce qui est
- * bien plus long. Une valeur unique en CSS rendait l'un ou l'autre faux.
+ * Le RETARD, lui, n'est pas ici mais dans `App.vue` (`RETARD_ARRIVEE`), et il ne
+ * sert QU'A la fin de l'arrivee : le temps que l'avatar rejoigne sa place. En
+ * venant d'une autre vue il n'y a rien a attendre, la barre etant posee sur la
+ * fenetre elle nait deja a sa place. En CSS il aurait fallu une valeur unique
+ * pour les deux cas, donc fausse dans l'un des deux.
  *
  * C'est `transform` et non `translate` qui porte la montee : le centrage
  * horizontal occupe deja `translate`, et les deux proprietes se composent au lieu

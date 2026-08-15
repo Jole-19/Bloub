@@ -788,9 +788,9 @@ watch(
           personnalisation), donc la bande sous la boule est deja libre ici. Rien
           de neuf a reserver, aucune variable a ajouter.
 
-          Ancree sur cette colonne et non en `fixed` comme la barre de montage :
-          celle-ci traverse l'ecran, alors qu'un bouton centre doit suivre le
-          glissement de l'avatar quand la largeur des panneaux s'interpole.
+          En `fixed` comme la barre de montage, mais calee sur la COLONNE de
+          l'avatar (`left`/`right`) et non sur la fenetre entiere : son contenu se
+          centre sous la boule, pas au milieu de l'ecran.
 
           Le calage fin est dans `styles.css` (`.barre-export`), qui a besoin du
           `min()` de la boite de l'avatar. En dessous de 64rem la regle ne
