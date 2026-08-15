@@ -16,7 +16,7 @@ import {
   SHAPE_BY_ID,
   mixHex
 } from '@/bot/skins'
-import { defaultCycle, type Block } from '@/bot/cycles'
+import { blockAt, defaultCycle, offsetOf, type Block } from '@/bot/cycles'
 import { STATE_BY_ID, type StateId } from '@/bot/states'
 
 const props = withDefaults(
@@ -141,7 +141,38 @@ function seek(index: number, offset = 0) {
   block.value = index
 }
 
-defineExpose({ seek })
+/**
+ * Rend le MONTAGE a la date absolue `t`, sans horloge. C'est ce qui permet de
+ * capturer un cycle entier hors ecran, image par image et plus vite que le temps
+ * reel.
+ *
+ * Pourquoi une methode a part, et pas `frozenAt` : `frozenAt` fige le temps DANS
+ * l'etat courant, il ne parcourt pas les blocs. Et passer par `seek` ne suffirait
+ * pas — `apply` cale le moteur sur `clock`, qui n'avance que dans la boucle et
+ * reste donc a zero en mode fige. Tous les changements d'etat s'enregistreraient
+ * a l'instant 0, et les fondus aux jointures de blocs seraient faux.
+ *
+ * D'ou le `setState` a l'offset ABSOLU du bloc : le moteur date ainsi la
+ * transition la ou elle a vraiment lieu dans le cycle, et `sample(t)` retombe sur
+ * la meme image que la lecture temps reel aurait produite.
+ */
+let dernierBloc = -1
+
+function rendAt(t: number) {
+  const blocs = props.cycle
+  if (!blocs.length) return
+  const { index } = blockAt(blocs, t)
+  if (index !== dernierBloc) {
+    const b = blocs[index]!
+    state.value = b.state
+    engine.setState(b.state, offsetOf(blocs, index))
+    dernierBloc = index
+  }
+  frame.value = engine.sample(t)
+  triggerRef(frame)
+}
+
+defineExpose({ seek, rendAt })
 
 /* ------------------------------------------------------- regard qui suit */
 

@@ -76,6 +76,11 @@ Details and the reasoning behind each are in [docs/](docs/):
 - **One state isn't measured: `swirl`**, the settings view's entry transition. It's
   deliberately outside `SEQUENCE` (a test locks that) and carries both `baseBody`
   and `baseFace`.
+- **`mediabunny` is the only dependency besides Vue, and it must stay a DYNAMIC import.**
+  It encodes the cycle's MP4 (`src/ui/video.ts`). Imported statically it adds **43 kB gzip**
+  to the initial bundle — more than the 34 kB that got `vue-i18n` rejected in favour of the
+  in-house layer. Behind `await import(…)` it costs 0.7 kB and only arrives when someone
+  exports a video. Turning it into a top-level import would silently undo that.
 - **A UI element that must appear once uses a `transition`, not an `animation`.** An
   animation replays on every mount — every view change, every reload. A transition
   doesn't run on an element's first computed style, so it stays quiet there. That's

@@ -12,8 +12,9 @@
 
 import { createApp, h, nextTick, ref } from 'vue'
 import BloubBot from '@/components/BloubBot.vue'
-import { gifAnime, svgAnime } from './anime'
-import { sansCommentaires, viewBoxExport } from './export'
+import type { Block } from '@/bot/cycles'
+import { gifAnime, gifIndexe, indexe, nouvellePalette, recense, svgAnime } from './anime'
+import { DEMI_ECRAN, sansCommentaires, viewBoxExport } from './export'
 
 /**
  * Serialise le SVG affiche en un document autonome, recadre sur la boule.
@@ -22,12 +23,12 @@ import { sansCommentaires, viewBoxExport } from './export'
  * dimension intrinseque, Firefox refuse de rasteriser un SVG charge dans une
  * `<img>`, et le canvas ressort vide.
  */
-export function svgAutonome(svg: SVGSVGElement, taille: number) {
+export function svgAutonome(svg: SVGSVGElement, taille: number, viewBox = viewBoxExport()) {
   const clone = svg.cloneNode(true) as SVGSVGElement
   // Les classes Tailwind de la page n'existent pas dans le fichier livre.
   clone.removeAttribute('class')
   clone.setAttribute('xmlns', 'http://www.w3.org/2000/svg')
-  clone.setAttribute('viewBox', viewBoxExport())
+  clone.setAttribute('viewBox', viewBox)
   clone.setAttribute('width', String(taille))
   clone.setAttribute('height', String(taille))
   return sansCommentaires(new XMLSerializer().serializeToString(clone))
@@ -132,6 +133,90 @@ export async function copieTexte(texte: string) {
   await navigator.clipboard.writeText(texte)
 }
 
+/** Combien d'images faites sur combien, pour la barre de progression. */
+export type Avancement = (fait: number, total: number) => void
+
+/**
+ * Exporte le cycle en MP4.
+ *
+ * Le fond est OBLIGATOIRE et non optionnel : la video n'a pas d'alpha (verifie,
+ * `VideoEncoder` refuse `alpha: 'keep'`). Sans fond, le bot serait compose sur du
+ * noir.
+ */
+export async function cycleVersMp4(
+  reglages: ReglagesBot,
+  blocs: Block[],
+  taille: number,
+  images: number,
+  pas: number,
+  fond: string,
+  avance?: Avancement
+): Promise<Blob> {
+  const { versMp4 } = await import('./video')
+  const canvas = document.createElement('canvas')
+  const lecteur = await ouvreCycle(reglages, blocs, taille, fond)
+  try {
+    return await versMp4(
+      canvas,
+      images,
+      Math.round(1 / pas),
+      async (i) => {
+        const svg = await lecteur.rendre(i * pas)
+        await dessine(svgAutonome(svg, taille, viewBoxExport(DEMI_ECRAN)), taille, canvas, fond)
+      },
+      avance
+    )
+  } finally {
+    lecteur.ferme()
+  }
+}
+
+/**
+ * Exporte le cycle en GIF.
+ *
+ * DEUX passes sur la sequence, et c'est pour la memoire : un GIF a besoin d'une
+ * palette commune a toutes les images, donc de les avoir toutes vues avant d'en
+ * encoder une seule. Les garder en pixels bruts couterait 255 Mo sur un cycle de
+ * trente secondes. La premiere passe ne retient que les couleurs, la seconde
+ * encode — le rendu est deterministe, donc rejouer la sequence redonne exactement
+ * les memes images.
+ */
+export async function cycleVersGif(
+  reglages: ReglagesBot,
+  blocs: Block[],
+  taille: number,
+  images: number,
+  pas: number,
+  fond: string | null,
+  avance?: Avancement
+): Promise<Blob> {
+  const canvas = document.createElement('canvas')
+  const lecteur = await ouvreCycle(reglages, blocs, taille, fond ?? undefined)
+  const vue = viewBoxExport(DEMI_ECRAN)
+  const pixels = async (i: number) => {
+    const svg = await lecteur.rendre(i * pas)
+    const ctx = await dessine(svgAutonome(svg, taille, vue), taille, canvas, fond)
+    return ctx.getImageData(0, 0, taille, taille).data
+  }
+  try {
+    const palette = nouvellePalette()
+    for (let i = 0; i < images; i++) {
+      recense(palette, await pixels(i))
+      avance?.(i + 1, images * 2)
+    }
+    const morceaux: Uint8Array[] = []
+    for (let i = 0; i < images; i++) {
+      morceaux.push(indexe(palette, await pixels(i)))
+      avance?.(images + i + 1, images * 2)
+    }
+    return new Blob([gifIndexe(palette, morceaux, taille, taille, Math.round(pas * 1000))], {
+      type: 'image/gif'
+    })
+  } finally {
+    lecteur.ferme()
+  }
+}
+
 /** Ce que le bot doit porter sur l'animation exportee. */
 export interface ReglagesBot {
   shape: string
@@ -191,6 +276,69 @@ export async function sequenceDuBot<T>(
   } finally {
     app.unmount()
     hote.remove()
+  }
+}
+
+/**
+ * Rend un CYCLE hors ecran, image par image, en appelant `lis` pour chacune.
+ *
+ * Les images ne sont jamais accumulees : un cycle de trente secondes fait plus de
+ * six cents images, soit 255 Mo de pixels bruts si on les gardait toutes. C'est
+ * l'appelant qui decide quoi en faire au fil de l'eau — encoder, indexer, jeter.
+ *
+ * Le rendu passe par `rendAt` et non par `frozenAt` : seul `rendAt` parcourt les
+ * blocs en datant chaque changement d'etat a son offset absolu, ce qui donne les
+ * memes fondus aux jointures que la lecture temps reel. Voir sa doc dans
+ * `BloubBot.vue`.
+ */
+export interface LecteurHorsEcran {
+  /** Rend l'instant `t` du cycle et renvoie le SVG a lire. */
+  rendre: (t: number) => Promise<SVGSVGElement>
+  ferme: () => void
+}
+
+export async function ouvreCycle(
+  reglages: ReglagesBot,
+  blocs: Block[],
+  taille: number,
+  paper?: string
+): Promise<LecteurHorsEcran> {
+  const hote = document.createElement('div')
+  hote.style.cssText = 'position:fixed;left:-99999px;top:0;width:0;height:0;overflow:hidden'
+  document.body.appendChild(hote)
+
+  const bot = ref<{ rendAt: (t: number) => void } | null>(null)
+  const app = createApp({
+    render: () =>
+      h(BloubBot, {
+        ...reglages,
+        size: taille,
+        cycle: blocs,
+        frozenAt: 0,
+        ref: bot,
+        ...(paper ? { paper } : {})
+      })
+  })
+  app.mount(hote)
+  await nextTick()
+
+  const svg = hote.querySelector('svg')
+  if (!svg || !bot.value) {
+    app.unmount()
+    hote.remove()
+    throw new Error('bot hors ecran non rendu')
+  }
+
+  return {
+    rendre: async (t: number) => {
+      bot.value!.rendAt(t)
+      await nextTick()
+      return svg
+    },
+    ferme: () => {
+      app.unmount()
+      hote.remove()
+    }
   }
 }
 

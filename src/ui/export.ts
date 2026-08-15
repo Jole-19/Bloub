@@ -48,6 +48,19 @@ export function viewBoxExport(demi = DEMI_CADRE) {
   return `${-demi} ${-demi} ${demi * 2} ${demi * 2}`
 }
 
+/**
+ * Demi-cote du viewBox de l'ECRAN, cf. le `VB` de BloubBot.vue.
+ *
+ * C'est celui qu'il faut pour exporter un CYCLE, et pas le cadre serre : la marge
+ * que le cadre serre supprime est justement celle qui loge les anneaux des etats
+ * animes. Ils montent a 1,4 fois le rayon de la boule, soit 140 — donc au-dela des
+ * 125 du cadre serre, qui les rognerait. Un test le verrouille.
+ *
+ * Rien ne borne ces rayons au runtime : c'est le reglage a la main des tableaux
+ * `RINGS` et `SWOOSH` (decor.ts) qui les tient sous 158.
+ */
+export const DEMI_ECRAN = 158
+
 export type ActionId = 'png' | 'svg' | 'anime' | 'gif' | 'copie' | 'copieSvg'
 
 /** Ce qu'on fait de l'image une fois produite. */
@@ -114,6 +127,37 @@ export const GIF_PAS = 1 / GIF_FPS
  * fichier exporte a la taille finale.
  */
 export const GIF_TAILLE = 320
+
+/* --------------------------------------------------- export d'un cycle */
+
+/**
+ * Formats d'export d'un CYCLE. Pas de SVG anime ici, et c'est mesure : sur un
+ * cycle le corps morphe a chaque image, or son chemin pese 2,5 ko — six cents
+ * images en feraient 1,5 Mo, sans compter les arcs. Le SVG anime ne tient que
+ * pour l'avatar au repos, ou la silhouette est immobile.
+ */
+export type FormatCycle = 'mp4' | 'gif'
+
+export const FORMATS_CYCLE: FormatCycle[] = ['mp4', 'gif']
+export const FORMAT_CYCLE_DEFAUT: FormatCycle = 'mp4'
+
+/**
+ * Cadence du cycle exporte. Vingt images par seconde : au-dela, le GIF ne suit
+ * pas (son delai est en centiemes de seconde) et chaque image ajoutee pese sur
+ * les deux formats.
+ */
+export const CYCLE_FPS = 20
+export const CYCLE_PAS = 1 / CYCLE_FPS
+export const CYCLE_TAILLE = 320
+
+/** Combien d'images pour un cycle de `duree` secondes. */
+export const cycleImages = (duree: number) => Math.max(1, Math.round(duree * CYCLE_FPS))
+
+/**
+ * La video est TOUJOURS opaque : `VideoEncoder` refuse `alpha: 'keep'`, en H.264
+ * comme en VP9. Le GIF, lui, garde le choix du fond.
+ */
+export const cycleAccepteTransparence = (format: FormatCycle) => format === 'gif'
 
 /**
  * Fond du GIF, au choix de l'utilisateur.
@@ -199,7 +243,17 @@ export function nomFichier(
   extension: string,
   suffixe = ''
 ) {
-  const propre = (v: string) => v.toLowerCase().replace(/[^a-z0-9]+/g, '').slice(0, 24)
+  const propre = (v: string) =>
+    v
+      .toLowerCase()
+      // Les accents passent en lettre nue plutot que d'etre effaces : un nom de
+      // montage comme « Cycle par défaut » doit rester lisible dans le dossier de
+      // telechargement, pas devenir « cyclepardfaut ».
+      .normalize('NFD')
+      .replace(/[\u0300-\u036f]/g, '')
+      .replace(/[^a-z0-9]+/g, '-')
+      .replace(/^-+|-+$/g, '')
+      .slice(0, 40)
   const morceaux = [propre(forme), propre(expression), propre(couleur), propre(suffixe)].filter(
     Boolean
   )

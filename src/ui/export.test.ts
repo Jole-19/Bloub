@@ -3,6 +3,12 @@ import { SHAPES } from '@/bot/skins'
 import {
   ACTIONS,
   BLANC,
+  CYCLE_FPS,
+  DEMI_ECRAN,
+  FORMATS_CYCLE,
+  FORMAT_CYCLE_DEFAUT,
+  cycleAccepteTransparence,
+  cycleImages,
   FONDS_GIF,
   FOND_GIF_DEFAUT,
   couleurDeFond,
@@ -99,6 +105,37 @@ describe('catalogue des exports', () => {
   })
 })
 
+describe('export d un cycle', () => {
+  /*
+   * LE piege du cycle : les anneaux des etats animes montent a 1,4 fois le rayon
+   * de la boule, soit 140 — au-dela du cadre serre de l'export fixe, qui les
+   * rognerait. Un cycle doit donc partir sur le viewBox de l'ecran.
+   */
+  it('exporte sur le viewBox de l ecran, pas sur le cadre serre', () => {
+    const RAYON_ARCS = 140
+    expect(DEMI_ECRAN).toBeGreaterThan(RAYON_ARCS)
+    expect(DEMI_CADRE).toBeLessThan(RAYON_ARCS)
+  })
+
+  it('ne propose ni SVG anime ni format hors video', () => {
+    // le corps morphe a chaque image : 2,5 ko de chemin fois six cents images
+    expect(FORMATS_CYCLE).toEqual(['mp4', 'gif'])
+    expect(FORMATS_CYCLE).toContain(FORMAT_CYCLE_DEFAUT)
+  })
+
+  /* La video n'a pas d'alpha : `VideoEncoder` refuse `alpha: 'keep'`. */
+  it('ne laisse le choix du fond qu au gif', () => {
+    expect(cycleAccepteTransparence('gif')).toBe(true)
+    expect(cycleAccepteTransparence('mp4')).toBe(false)
+  })
+
+  it('compte les images d apres la duree', () => {
+    expect(cycleImages(31.2)).toBe(Math.round(31.2 * CYCLE_FPS))
+    // un montage minuscule doit quand meme donner une image
+    expect(cycleImages(0)).toBe(1)
+  })
+})
+
 describe('fond du gif', () => {
   /* Le GIF est le SEUL format a poser la question : lui seul a 1 bit d'alpha. */
   it('ne concerne que le gif', () => {
@@ -161,6 +198,12 @@ describe('nom de fichier', () => {
     // Un seul point, celui de l'extension.
     expect(nom.split('.')).toHaveLength(2)
     expect(nom.endsWith('.png')).toBe(true)
+  })
+
+  /* Un nom de montage doit rester lisible : « Cycle par défaut », pas « cyclepardfaut ». */
+  it('translittere les accents et separe les mots', () => {
+    expect(nomFichier('Cycle par défaut', '', '', 'mp4')).toBe('bloub-cycle-par-defaut.mp4')
+    expect(nomFichier('Été 2026', '', '', 'gif')).toBe('bloub-ete-2026.gif')
   })
 
   it('survit a des ids vides', () => {

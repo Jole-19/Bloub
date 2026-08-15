@@ -36,7 +36,7 @@ const props = defineProps<{
  * `seek` : deplacement de la tete de lecture, seul le lecteur sait recaler le
  * moteur. `preview` : la page entiere se met en scene, c'est elle qui decide.
  */
-const emit = defineEmits<{ seek: [seconds: number]; preview: [] }>()
+const emit = defineEmits<{ seek: [seconds: number]; preview: []; exporter: [] }>()
 
 const cycles = defineModel<Cycle[]>('cycles', { required: true })
 const activeId = defineModel<string>('activeId', { required: true })
@@ -250,6 +250,39 @@ function onRemove() {
             role="tooltip"
           >
             {{ t('timeline.preview') }}
+          </span>
+        </span>
+
+        <span class="group relative flex">
+          <button
+            type="button"
+            class="flex h-7 w-7 cursor-pointer items-center justify-center rounded-lg text-[var(--muted)] transition hover:bg-black/5 hover:text-[var(--ink)]"
+            :aria-label="t('timeline.export')"
+            @click="emit('exporter')"
+          >
+            <!-- solar:download-minimalistic-linear, la meme que la barre d'export
+                 de la vue Personnaliser : c'est la meme action, sur une autre
+                 matiere -->
+            <svg width="17" height="17" viewBox="0 0 24 24" aria-hidden="true">
+              <g
+                fill="none"
+                stroke="currentColor"
+                stroke-linecap="round"
+                stroke-linejoin="round"
+                stroke-width="1.5"
+              >
+                <path
+                  d="M3 15C3 17.8284 3 19.2426 3.87868 20.1213C4.75736 21 6.17157 21 9 21H15C17.8284 21 19.2426 21 20.1213 20.1213C21 19.2426 21 17.8284 21 15"
+                />
+                <path d="M12 3V16M8 11.625L12 16L16 11.625" />
+              </g>
+            </svg>
+          </button>
+          <span
+            class="pointer-events-none absolute bottom-full left-1/2 mb-2 -translate-x-1/2 translate-y-1 rounded-lg bg-[var(--ink)] px-2.5 py-1.5 text-xs whitespace-nowrap text-[var(--paper)] opacity-0 transition group-hover:translate-y-0 group-hover:opacity-100 group-focus-within:translate-y-0 group-focus-within:opacity-100"
+            role="tooltip"
+          >
+            {{ t('timeline.export') }}
           </span>
         </span>
       </div>

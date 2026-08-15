@@ -148,18 +148,96 @@ function lzw(indices: Uint8Array, bitsParPixel: number): number[] {
   return sortie
 }
 
-/** Palette commune a toutes les images, index 0 reserve au transparent. */
-function palette(images: Uint8ClampedArray[]) {
-  const vues = new Map<number, number>()
-  for (const px of images) {
-    for (let p = 0; p < px.length; p += 4) {
-      if (px[p + 3]! < 128) continue
-      const cle = (px[p]! << 16) | (px[p + 1]! << 8) | px[p + 2]!
-      if (!vues.has(cle)) vues.set(cle, vues.size + 1)
-      if (vues.size >= 255) break
+/**
+ * Palette commune a toutes les images, index 0 reserve au transparent.
+ *
+ * Elle se construit en DEUX temps — recenser les couleurs, puis indexer les
+ * images — parce qu'un GIF exige une palette commune : il faut avoir vu toutes
+ * les images avant d'en encoder une seule. Sur un cycle de trente secondes, les
+ * garder en pixels bruts couterait 255 Mo ; recensees puis indexees, elles ne
+ * pesent plus qu'un octet par pixel.
+ */
+export interface PaletteGif {
+  /** Combien de pixels par teinte, pendant le recensement. */
+  vues: Map<number, number>
+  /** RGB compacte sur 24 bits -> index, une fois la palette arretee. */
+  index: Map<number, number>
+  /** Resolution des teintes absentes vers la plus proche retenue. */
+  proches: Map<number, number>
+  /** Au moins un pixel transparent a ete vu. */
+  transparence: boolean
+}
+
+export const nouvellePalette = (): PaletteGif => ({
+  vues: new Map(),
+  index: new Map(),
+  proches: new Map(),
+  transparence: false
+})
+
+/**
+ * Recense les couleurs d'une image, en COMPTANT les pixels.
+ *
+ * Le comptage n'est pas un detail : une palette remplie au premier arrive se
+ * serait gorgee des nuances d'anticrenelage des premieres images, et les teintes
+ * des anneaux — qui n'apparaissent qu'au milieu du cycle — seraient toutes tombees
+ * sur la meme case. Mesure : un cycle depasse les 255 couleurs, donc il FAUT
+ * choisir lesquelles garder.
+ */
+export function recense(palette: PaletteGif, px: Uint8ClampedArray) {
+  for (let p = 0; p < px.length; p += 4) {
+    if (px[p + 3]! < 128) {
+      palette.transparence = true
+      continue
+    }
+    const cle = (px[p]! << 16) | (px[p + 1]! << 8) | px[p + 2]!
+    palette.vues.set(cle, (palette.vues.get(cle) ?? 0) + 1)
+  }
+}
+
+/** Arrete la palette sur les 255 teintes les plus presentes. */
+function arrete(palette: PaletteGif) {
+  if (palette.index.size) return
+  const tries = [...palette.vues.entries()].sort((a, b) => b[1] - a[1]).slice(0, 255)
+  for (const [cle] of tries) palette.index.set(cle, palette.index.size + 1)
+}
+
+/** Index de la teinte la plus proche parmi celles retenues, mis en cache. */
+function plusProche(palette: PaletteGif, cle: number) {
+  const connu = palette.proches.get(cle)
+  if (connu !== undefined) return connu
+  const r = (cle >> 16) & 0xff
+  const v = (cle >> 8) & 0xff
+  const b = cle & 0xff
+  let meilleur = 1
+  let ecart = Infinity
+  for (const [autre, i] of palette.index) {
+    const dr = r - ((autre >> 16) & 0xff)
+    const dv = v - ((autre >> 8) & 0xff)
+    const db = b - (autre & 0xff)
+    const d = dr * dr + dv * dv + db * db
+    if (d < ecart) {
+      ecart = d
+      meilleur = i
     }
   }
-  return vues
+  // Le cache borne le cout : chaque teinte absente n'est resolue qu'une fois,
+  // meme si elle revient sur des centaines d'images.
+  palette.proches.set(cle, meilleur)
+  return meilleur
+}
+
+/** Traduit une image en index de palette, un octet par pixel. */
+export function indexe(palette: PaletteGif, px: Uint8ClampedArray): Uint8Array {
+  arrete(palette)
+  const out = new Uint8Array(px.length / 4)
+  for (let i = 0, p = 0; i < out.length; i++, p += 4) {
+    // 0 = transparent, et c'est deja la valeur par defaut du tableau
+    if (px[p + 3]! < 128) continue
+    const cle = (px[p]! << 16) | (px[p + 1]! << 8) | px[p + 2]!
+    out[i] = palette.index.get(cle) ?? plusProche(palette, cle)
+  }
+  return out
 }
 
 /**
@@ -185,13 +263,33 @@ export function gifAnime(
   delaiMs: number
 ): Uint8Array<ArrayBuffer> {
   if (!images.length) throw new Error('aucune image a emballer')
+  const palette = nouvellePalette()
+  for (const px of images) recense(palette, px)
+  return gifIndexe(
+    palette,
+    images.map((px) => indexe(palette, px)),
+    largeur,
+    hauteur,
+    delaiMs
+  )
+}
 
-  const transparence = images.some((px) => {
-    for (let p = 3; p < px.length; p += 4) if (px[p]! < 128) return true
-    return false
-  })
+/**
+ * Meme chose, mais sur des images DEJA indexees — la voie a memoire bornee, pour
+ * les longues sequences. Cf. `PaletteGif`.
+ */
+export function gifIndexe(
+  palette: PaletteGif,
+  images: Uint8Array[],
+  largeur: number,
+  hauteur: number,
+  delaiMs: number
+): Uint8Array<ArrayBuffer> {
+  if (!images.length) throw new Error('aucune image a emballer')
 
-  const couleurs = palette(images)
+  arrete(palette)
+  const transparence = palette.transparence
+  const couleurs = palette.index
   // Une palette GIF a une taille en puissance de deux, et il faut au moins deux
   // bits par pixel pour que le code de remise a zero tienne.
   const bits = Math.max(2, Math.ceil(Math.log2(couleurs.size + 1)))
@@ -224,13 +322,7 @@ export function gifAnime(
   // cadence, un delai de 0 ou 1 etant traite differemment selon les lecteurs.
   const delai = Math.max(2, Math.round(delaiMs / 10))
 
-  for (const px of images) {
-    const indices = new Uint8Array(largeur * hauteur)
-    for (let i = 0, p = 0; i < indices.length; i++, p += 4) {
-      if (px[p + 3]! < 128) continue // reste a 0, donc transparent
-      const cle = (px[p]! << 16) | (px[p + 1]! << 8) | px[p + 2]!
-      indices[i] = couleurs.get(cle) ?? 1
-    }
+  for (const indices of images) {
     out.push(
       0x21,
       0xf9,

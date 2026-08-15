@@ -4,14 +4,17 @@ import BotTile from '@/components/BotTile.vue'
 import Customizer from '@/components/Customizer.vue'
 import BloubBot from '@/components/BloubBot.vue'
 import ExportBar from '@/components/ExportBar.vue'
+import CycleDialog from '@/components/CycleDialog.vue'
 import GifDialog from '@/components/GifDialog.vue'
 import Settings from '@/components/Settings.vue'
 import SideRail, { type ViewId } from '@/components/SideRail.vue'
 import Timeline from '@/components/Timeline.vue'
-import { t } from '@/i18n'
+import { nomDeCycle, t } from '@/i18n'
 import {
   copie,
   copieTexte,
+  cycleVersGif,
+  cycleVersMp4,
   svgAutonome,
   telecharge,
   versGifAnime,
@@ -22,19 +25,33 @@ import {
   ACTION_BY_ID,
   ANIM_IMAGES,
   ANIM_PAS,
+  CYCLE_PAS,
+  CYCLE_TAILLE,
   FOND_GIF_DEFAUT,
+  FORMAT_CYCLE_DEFAUT,
   GIF_IMAGES,
   GIF_PAS,
+  BLANC,
   couleurDeFond,
+  cycleImages,
   nomFichier,
   type ActionId,
   type EtatExport,
-  type FondGif
+  type FondGif,
+  type FormatCycle
 } from '@/ui/export'
 import { HUMEURS } from '@/ui/gaze'
 import { INTRO, INTRO_GAZE, POSE_AT, introDue } from '@/ui/intro'
 import { cle } from '@/ui/stockage'
-import { blockAt, blocksWith, defaultCycle, makeBlock, parseCycles, type Cycle } from '@/bot/cycles'
+import {
+  blockAt,
+  blocksWith,
+  defaultCycle,
+  makeBlock,
+  parseCycles,
+  totalDuration,
+  type Cycle
+} from '@/bot/cycles'
 import { DEFAULT_EXPRESSION, EXPRESSION_BY_ID } from '@/bot/expressions'
 import { COLOR_BY_ID, DEFAULT_COLOR, DEFAULT_SHAPE, SHAPE_BY_ID } from '@/bot/skins'
 import { POSES, SEQUENCE, STATES, type StateId } from '@/bot/states'
@@ -488,6 +505,52 @@ watch(nue, (encore, avant) => {
   minuteurBarre = setTimeout(() => (barreCachee.value = false), RETARD_ARRIVEE)
 })
 
+/* --------------------------------------------------- export du montage */
+
+const dialogueCycle = ref(false)
+const formatCycle = ref<FormatCycle>(FORMAT_CYCLE_DEFAUT)
+const fondCycle = ref<FondGif>(FOND_GIF_DEFAUT)
+/** `null` tant qu'on n'encode pas ; sinon la fraction faite, pour la barre. */
+const avancementCycle = ref<number | null>(null)
+
+/**
+ * Exporte le MONTAGE, pas l'avatar : c'est le cycle courant qui est rejoue hors
+ * ecran, du debut a la fin. Un cycle dure des dizaines de secondes, donc la boite
+ * reste ouverte et affiche sa progression au lieu de laisser la page figee.
+ */
+async function exporteCycle() {
+  if (avancementCycle.value !== null) return
+  const blocs = cycle.value.blocks
+  const images = cycleImages(totalDuration(blocs))
+  const reglages = { shape: shape.value, color: color.value, expression: expression.value }
+  const suit = (fait: number, total: number) => (avancementCycle.value = fait / total)
+
+  avancementCycle.value = 0
+  try {
+    const mp4 = formatCycle.value === 'mp4'
+    // La video n'a pas d'alpha : elle impose le blanc. Le GIF, lui, garde le choix.
+    const fichier = mp4
+      ? await cycleVersMp4(reglages, blocs, CYCLE_TAILLE, images, CYCLE_PAS, BLANC, suit)
+      : await cycleVersGif(
+          reglages,
+          blocs,
+          CYCLE_TAILLE,
+          images,
+          CYCLE_PAS,
+          couleurDeFond(fondCycle.value),
+          suit
+        )
+    telecharge(fichier, nomFichier(nomDeCycle(cycle.value), '', '', mp4 ? 'mp4' : 'gif'))
+    dialogueCycle.value = false
+  } catch {
+    etatExport.value = 'erreur'
+    clearTimeout(confirmation)
+    confirmation = setTimeout(() => (etatExport.value = 'pret'), CONFIRMATION_MS)
+  } finally {
+    avancementCycle.value = null
+  }
+}
+
 /** Duree d'affichage de la confirmation d'export. */
 const CONFIRMATION_MS = 1800
 
@@ -749,13 +812,24 @@ watch(
         </div>
 
         <!--
-          Le GIF est le seul format a demander son fond (voir `exporte`).
+          Les deux boites sont HORS de la barre d'export, alors que c'est elle qui
+          ouvre la seconde : la barre porte `inert` quand elle est masquee, et
+          `inert` s'applique a toute la descendance — y compris a un element passe
+          dans la couche superieure, que rien ne doit pouvoir neutraliser.
 
-          La boite est HORS de la barre, alors que c'est elle qui l'ouvre : la
-          barre porte `inert` quand elle est masquee, et `inert` s'applique a
-          toute la descendance — y compris a un element passe dans la couche
-          superieure, que rien ne doit pouvoir neutraliser.
+          Export du MONTAGE, depuis la barre de montage : format et progression.
         -->
+        <CycleDialog
+          v-if="view === 'animations' && !preview"
+          v-model:open="dialogueCycle"
+          v-model:format="formatCycle"
+          v-model:fond="fondCycle"
+          :avancement="avancementCycle"
+          @confirm="exporteCycle"
+        />
+
+        <!-- Export de l'AVATAR : le GIF est le seul format a demander son fond,
+             voir `exporte`. -->
         <GifDialog
           v-if="view === 'personnaliser' && !preview"
           v-model:open="dialogueGif"
@@ -825,6 +899,7 @@ watch(
       :expression="expression"
       @seek="onSeek"
       @preview="preview = true"
+        @exporter="dialogueCycle = true"
     />
   </template>
 </template>

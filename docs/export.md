@@ -3,8 +3,8 @@
 The Personnaliser view's export bar. `src/ui/export.ts` is pure and tested (frame,
 catalogue, filename); `src/ui/capture.ts` is the DOM layer (canvas, clipboard);
 `src/components/ExportBar.vue` is presentational and only emits a format, like
-`Customizer.vue`. **No dependency was added** — `XMLSerializer` and a canvas are
-enough.
+`Customizer.vue`. Everything still images is dependency-free — `XMLSerializer` and a canvas
+are enough. Only the **cycle video** pulls a library, and only on demand (see below).
 
 ## Nothing is reserved for the bar, and nothing should be
 
@@ -173,3 +173,45 @@ gesture, and any `await` slipped in before it loses that gesture.
 Copying an image is offered only where the browser can write one
 (`ClipboardItem.supports`); copying the SVG goes through `writeText` and works
 everywhere.
+
+
+## Exporting a whole cycle is a different problem
+
+The Personnaliser bar exports the avatar; the montage bar exports the **cycle**, and almost
+none of the still-export reasoning carries over.
+
+**The frame must be the screen's `±158`, not the tight export frame.** The margin the tight
+frame removes is exactly the one holding the animated states' rings, which reach 1.4 × the
+ball radius — 140, past the tight frame's 125. Nothing clamps those radii at runtime: it is
+the hand-tuned `RINGS`/`SWOOSH` tables in `decor.ts` that keep them under 158. A test locks
+the relationship.
+
+**No animated SVG here.** It worked at rest only because the body was static. Over a cycle
+the body path changes every frame and weighs 2.5 kB, so six hundred frames would be 1.5 MB
+before counting the arcs.
+
+**`frozenAt` does not walk the montage, and `seek` is not enough either.** `apply()` dates
+the engine with `clock`, which only advances in the rAF loop and therefore stays at 0 while
+frozen — every state change would register at t=0 and the cross-fades at block joints would
+be wrong. Hence `rendAt(t)` on `BloubBot`: it resolves the block with `blockAt` and calls
+`setState` with the block's **absolute** offset, reproducing `tick()` without a clock. Proven
+by measurement: across a joint the silhouette moves 17.6 → 7.0 → 2.1 → 0.36 → 0.02 over
+~0.3 s, the decay of an exponential ease-out. A broken morph would show one single jump.
+
+**Frames are never accumulated.** A thirty-second cycle is 624 frames — 255 MB of raw pixels
+if kept. The MP4 path streams frame-by-frame into the encoder (awaiting each `add` is what
+applies backpressure); the GIF path renders the sequence **twice**, once to count colours and
+once to encode, which is free because the render is deterministic.
+
+**The GIF palette is chosen by frequency, not first-come.** Measured: a cycle exceeds 255
+colours, so a palette filled in encounter order would gorge itself on the first frames'
+antialiasing and dump every ring colour into one slot. Unseen colours resolve to the nearest
+kept entry, cached so each distinct colour costs one search.
+
+**Video is always opaque** — `VideoEncoder` refuses `alpha: 'keep'` for H.264 and VP9 alike,
+so the dialog offers a background choice for the GIF only, and doesn't show the group at all
+for MP4 rather than showing it disabled.
+
+Measured on the default cycle (31.2 s, 624 frames, 320²): MP4 677 kB in ~3 s, GIF 1.5 MB in
+~16 s. Real-time recording via `MediaRecorder` would have been dependency-free but takes the
+full 31.2 s, which is why the encoder won.
