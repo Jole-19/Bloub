@@ -155,9 +155,9 @@ its exact pixels, because structural assertions cannot catch this.
 
 The palette is exact rather than dithered: the bot uses very few distinct colours (71.4 %
 transparent, 26.7 % body, 1.5 % `paper`, the rest antialiasing), so index 0 is reserved for
-transparency and the rest fit. Frames are disposed to background (`2 << 2`), the GIF
-equivalent of "do not blend": without it the transparent areas keep the previous frame and
-the ball drags a trail. Delays are in **hundredths** of a second, which caps the useful rate,
+transparency and the rest fit. Transparent frames are the ones disposed to background
+(`2 << 2`), the GIF equivalent of "do not blend": without it their transparent areas keep the
+previous frame and the ball drags a trail. Opaque frames stay in place, as above. Delays are in **hundredths** of a second, which caps the useful rate,
 and never below 2 since 0 and 1 are handled inconsistently by readers.
 
 Measured on the output: 147 kB, 60 frames at 320², decoded back by Chrome with a transparent

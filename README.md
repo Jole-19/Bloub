@@ -31,6 +31,10 @@ a small editor: arrange states into a timeline, set how long each is held, save 
 result. **Settings** holds the language (French, English or Chinese) and the
 credits.
 
+Anything on screen can be exported: the avatar as SVG, PNG or an animated GIF, and
+a whole timeline as GIF or MP4. The still formats need no library at all, and the
+video encoder is only fetched the first time you ask for one.
+
 Two URLs are worth knowing:
 
 - `#planche`: the 14 states side by side, frozen. Quick visual check.
@@ -73,6 +77,7 @@ the DOM-less test suite possible.
 | [docs/measurements.md](docs/measurements.md) | What was measured, and regenerating `profiles.ts` |
 | [docs/intro.md](docs/intro.md) | The arrival sequence, and why it only plays one state |
 | [docs/interface.md](docs/interface.md) | Layout, the three-column scene, CSS traps |
+| [docs/export.md](docs/export.md) | Exporting to SVG, PNG, GIF and MP4 |
 | [docs/i18n.md](docs/i18n.md) | The hand-rolled translation layer |
 
 ## Using the component
