@@ -226,6 +226,22 @@ watch(preview, (on) => {
 // qu'au changement, il faut l'appliquer aussi a l'initialisation.
 const playing = ref(intro.value || (initial.playing && view.value === 'animations'))
 
+/**
+ * Le dernier fragment que NOUS avons ecrit, en attente de son `hashchange`.
+ *
+ * Sans lui, le lecteur ne peut pas depasser un etat en DOUBLE dans le montage :
+ * `location.replace` declenche un `hashchange` que l'ecouteur traite comme une
+ * navigation entrante, et `locate` renvoie la PREMIERE occurrence de l'etat. Sur
+ * un montage ou `idle` apparait deux fois, atteindre la seconde ramenait la tete
+ * de lecture a la premiere — le montage bouclait sans jamais aboutir. Meme effet
+ * a la pause, qui ecrit `&stop`.
+ *
+ * Consomme a la premiere lecture : une ecriture provoque au plus un evenement,
+ * donc on ne doit pas ignorer durablement ce fragment — un retour arriere du
+ * navigateur vers ce meme etat est une vraie navigation, et elle doit compter.
+ */
+let ecritParNous = ''
+
 // L'URL est partageable, donc elle suit l'etat ET la lecture. replace et pas
 // push : on ne veut pas un cran d'historique par etat.
 watch([state, playing], ([id, on]) => {
@@ -235,10 +251,16 @@ watch([state, playing], ([id, on]) => {
   // qui replacait la tete de lecture sur les index du montage de l'utilisateur,
   // alors que la vue joue le sien : le lecteur restait coince sur l'orbite.
   if (view.value !== 'animations') return
-  location.replace(`#etat=${id}${on ? '' : '&stop'}`)
+  ecritParNous = `#etat=${id}${on ? '' : '&stop'}`
+  location.replace(ecritParNous)
 })
 
 window.addEventListener('hashchange', () => {
+  // notre propre ecriture n'est pas une navigation : cf. `ecritParNous`
+  if (location.hash === ecritParNous) {
+    ecritParNous = ''
+    return
+  }
   const next = readHash()
   /*
    * L'arrivee met en scene l'OUVERTURE de la page : la rejouer a chaud
