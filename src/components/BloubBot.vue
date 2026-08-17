@@ -350,7 +350,18 @@ watch(block, (i) => {
 
 // Changement d'etat venu d'une prop : c'est le cas des vignettes figees, qui
 // n'ont pas de curseur. En lecture, `apply` a deja fait le travail.
+//
+// Le garde n'est pas une optimisation, il corrompait une image a CHAQUE jointure
+// de bloc a l'export : `rendAt` pose l'etat sur le moteur a son offset ABSOLU
+// puis echantillonne a la bonne date, mais le watcher — dont la file est videe
+// par le `nextTick` de l'export — repassait ensuite un `redrawFrozen()` non
+// inerte (le lecteur hors ecran est monte avec `frozenAt: 0`). Or `sample(0)`
+// juste apres un changement date a l'offset donne un ratio de melange nul, donc
+// la pose de l'etat PRECEDENT : le point d'exclamation revenait au depart de sa
+// course pendant une image, treize fois dans le montage par defaut.
 watch(state, (id) => {
+  // `rendAt` ou `apply` l'a deja applique, et a la bonne date
+  if (engine.state === id) return
   engine.setState(id, clock)
   redrawFrozen()
 })

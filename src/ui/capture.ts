@@ -180,6 +180,15 @@ export async function cycleVersMp4(
  * trente secondes. La premiere passe ne retient que les couleurs, la seconde
  * encode — le rendu est deterministe, donc rejouer la sequence redonne exactement
  * les memes images.
+ *
+ * Un lecteur NEUF par passe, et c'est la condition de ce determinisme. Le moteur
+ * garde l'etat precedent pour ses fondus, et le lecteur garde le dernier bloc
+ * pose : rejouer l'image 0 sur le lecteur qui vient de finir la sequence datait
+ * le premier etat a l'instant 0 avec le DERNIER en etat precedent, et rendait
+ * donc la pose de celui-la. Le GIF par defaut s'ouvrait sur une boule sans yeux
+ * — la comete a un `eyeAlpha` nul — les yeux n'apparaissant qu'au fil des neuf
+ * images du fondu. La palette, elle, avait ete comptee sur des images qui
+ * n'etaient pas celles encodees.
  */
 export async function cycleVersGif(
   reglages: ReglagesBot,
@@ -190,31 +199,39 @@ export async function cycleVersGif(
   fond: string | null,
   avance?: Avancement
 ): Promise<Blob> {
+  // Un seul canvas pour les deux passes : il est reinitialise a chaque image.
   const canvas = document.createElement('canvas')
-  const lecteur = await ouvreCycle(reglages, blocs, taille, fond ?? undefined)
   const vue = viewBoxExport(DEMI_ECRAN)
-  const pixels = async (i: number) => {
-    const svg = await lecteur.rendre(i * pas)
-    const ctx = await dessine(svgAutonome(svg, taille, vue), taille, canvas, fond)
-    return ctx.getImageData(0, 0, taille, taille).data
-  }
-  try {
-    const palette = nouvellePalette()
-    for (let i = 0; i < images; i++) {
-      recense(palette, await pixels(i))
-      avance?.(i + 1, images * 2)
+
+  /** Une passe complete sur la sequence, sur un lecteur neuf. */
+  const passe = async (lis: (index: number, pixels: Uint8ClampedArray) => void) => {
+    const lecteur = await ouvreCycle(reglages, blocs, taille, fond ?? undefined)
+    try {
+      for (let i = 0; i < images; i++) {
+        const svg = await lecteur.rendre(i * pas)
+        const ctx = await dessine(svgAutonome(svg, taille, vue), taille, canvas, fond)
+        lis(i, ctx.getImageData(0, 0, taille, taille).data)
+      }
+    } finally {
+      lecteur.ferme()
     }
-    const morceaux: Uint8Array[] = []
-    for (let i = 0; i < images; i++) {
-      morceaux.push(indexe(palette, await pixels(i)))
-      avance?.(images + i + 1, images * 2)
-    }
-    return new Blob([gifIndexe(palette, morceaux, taille, taille, Math.round(pas * 1000))], {
-      type: 'image/gif'
-    })
-  } finally {
-    lecteur.ferme()
   }
+
+  const palette = nouvellePalette()
+  await passe((i, pixels) => {
+    recense(palette, pixels)
+    avance?.(i + 1, images * 2)
+  })
+
+  const morceaux: Uint8Array[] = []
+  await passe((i, pixels) => {
+    morceaux.push(indexe(palette, pixels))
+    avance?.(images + i + 1, images * 2)
+  })
+
+  return new Blob([gifIndexe(palette, morceaux, taille, taille, Math.round(pas * 1000))], {
+    type: 'image/gif'
+  })
 }
 
 /** Ce que le bot doit porter sur l'animation exportee. */
@@ -314,6 +331,16 @@ export async function ouvreCycle(
         ...reglages,
         size: taille,
         cycle: blocs,
+        /*
+         * Le moteur se construit sur l'etat qu'on lui donne, et l'image 0 doit
+         * etre le PREMIER etat du montage. Sans cette prop le modele prenait son
+         * defaut `idle` : un montage commencant par l'orbite s'ouvrait sur une
+         * boule au repos qui morphait vers le triangle pendant 0,6 s. C'est la
+         * meme precaution qu'a l'ecran, ou `state` est amorce sur le bloc courant
+         * « pour ne pas entrer en morphant depuis un etat qui n'a jamais ete
+         * affiche » (cf. `App.vue`).
+         */
+        state: blocs[0]?.state ?? 'idle',
         frozenAt: 0,
         ref: bot,
         ...(paper ? { paper } : {})
